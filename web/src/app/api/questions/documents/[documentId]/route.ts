@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 
 import { API_BASE_URL, readJsonResponse, rejectCrossOrigin, sessionToken } from "@/lib/auth-server";
 
@@ -8,6 +9,7 @@ export async function DELETE(request: NextRequest, context: RouteContext<"/api/q
   const token = await sessionToken();
   if (!token) return NextResponse.json({ detail: "登录后才能删除题库资料" }, { status: 401 });
   const { documentId } = await context.params;
+  if (!z.string().uuid().safeParse(documentId).success) return NextResponse.json({ detail: "题库资料编号格式不正确" }, { status: 422 });
   try {
     const response = await fetch(`${API_BASE_URL}/v1/questions/documents/${encodeURIComponent(documentId)}`, {
       method: "DELETE",

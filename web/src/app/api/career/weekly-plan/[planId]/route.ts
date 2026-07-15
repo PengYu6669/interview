@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 
 import { API_BASE_URL, readJsonResponse, rejectCrossOrigin, sessionToken } from "@/lib/auth-server";
 
@@ -8,6 +9,7 @@ export async function DELETE(request: NextRequest, context: RouteContext<"/api/c
   const token = await sessionToken();
   if (!token) return NextResponse.json({ detail: "登录后才能删除周计划" }, { status: 401 });
   const { planId } = await context.params;
+  if (!z.string().uuid().safeParse(planId).success) return NextResponse.json({ detail: "周计划编号格式不正确" }, { status: 422 });
   try {
     const response = await fetch(`${API_BASE_URL}/v1/career/weekly-plan/${encodeURIComponent(planId)}`, {
       method: "DELETE",

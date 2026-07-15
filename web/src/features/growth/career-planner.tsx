@@ -3,7 +3,7 @@
 import { Check, LoaderCircle, Plus, Save, Trash2 } from "lucide-react";
 import { FormEvent, useEffect, useState } from "react";
 
-import { careerWorkspaceSchema, type CareerWorkspace, type WeeklyPlanItem } from "@/lib/career";
+import { careerProfileSchema, careerWorkspaceSchema, weeklyPlanSchema, type CareerWorkspace, type WeeklyPlanItem } from "@/lib/career";
 
 const categoryLabels: Record<WeeklyPlanItem["category"], string> = {
   learning: "学习训练",
@@ -16,7 +16,10 @@ function mondayValue() {
   const date = new Date();
   const day = date.getDay() || 7;
   date.setDate(date.getDate() - day + 1);
-  return date.toISOString().slice(0, 10);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const dayOfMonth = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${dayOfMonth}`;
 }
 
 function detail(payload: unknown, fallback: string) {
@@ -66,6 +69,8 @@ export function CareerPlanner() {
       const response = await fetch("/api/career/profile", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...profile, target_companies: profile.target_companies.split(/[、,，]/).map((item) => item.trim()).filter(Boolean), preferred_cities: profile.preferred_cities.split(/[、,，]/).map((item) => item.trim()).filter(Boolean) }) });
       const payload: unknown = await response.json();
       if (!response.ok) throw new Error(detail(payload, "求职目标保存失败"));
+      const savedProfile = careerProfileSchema.parse(payload);
+      setWorkspace((current) => current ? { ...current, profile: savedProfile } : current);
       setMessage("求职目标已由你确认并保存");
     } catch (cause) { setError(cause instanceof Error ? cause.message : "求职目标保存失败"); } finally { setSaving(""); }
   }
@@ -76,6 +81,8 @@ export function CareerPlanner() {
       const response = await fetch("/api/career/weekly-plan", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ week_start: weekStart, goal, items, status: items.length > 0 && items.every((item) => item.completed_count === item.target_count) ? "completed" : "active" }) });
       const payload: unknown = await response.json();
       if (!response.ok) throw new Error(detail(payload, "周计划保存失败"));
+      const savedPlan = weeklyPlanSchema.parse(payload);
+      setWorkspace((current) => current ? { ...current, weekly_plan: savedPlan } : current);
       setMessage("本周计划已保存，可随进度继续调整");
     } catch (cause) { setError(cause instanceof Error ? cause.message : "周计划保存失败"); } finally { setSaving(""); }
   }
@@ -88,6 +95,33 @@ export function CareerPlanner() {
     setItems((current) => current.map((item) => item.id === id ? { ...item, ...patch } : item));
   }
 
+  async function deleteProfile() {
+    if (!window.confirm("清除已确认的求职画像？周计划会保留。")) return;
+    setSaving("profile"); setError(""); setMessage("");
+    try {
+      const response = await fetch("/api/career/profile", { method: "DELETE" });
+      if (!response.ok) { const payload: unknown = await response.json(); throw new Error(detail(payload, "求职画像清除失败")); }
+      const emptyProfile = careerProfileSchema.parse({ target_role: "", target_level: "", target_companies: [], preferred_cities: [], weekly_hours: 5, constraints: "", confirmed_at: null, updated_at: null });
+      setWorkspace((current) => current ? { ...current, profile: emptyProfile } : current);
+      setProfile({ target_role: "", target_level: "", target_companies: "", preferred_cities: "", weekly_hours: 5, constraints: "" });
+      setMessage("求职画像已清除");
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "求职画像清除失败"); } finally { setSaving(""); }
+  }
+
+  async function deletePlan() {
+    const plan = workspace?.weekly_plan;
+    if (!plan || !window.confirm("删除当前周计划？此操作不能撤销。")) return;
+    setSaving("plan"); setError(""); setMessage("");
+    try {
+      const response = await fetch(`/api/career/weekly-plan/${plan.id}`, { method: "DELETE" });
+      if (!response.ok) { const payload: unknown = await response.json(); throw new Error(detail(payload, "周计划删除失败")); }
+      setWorkspace((current) => current ? { ...current, weekly_plan: null } : current);
+      setGoal(workspace?.suggested_focus ?? "");
+      setItems([]);
+      setMessage("周计划已删除");
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "周计划删除失败"); } finally { setSaving(""); }
+  }
+
   if (!workspace && !error) return <section className="career-loading"><LoaderCircle className="spin" size={22} />正在读取求职计划</section>;
 
   return <div className="career-layout">
@@ -95,7 +129,7 @@ export function CareerPlanner() {
       <header><div><span>长期目标</span><h2>求职画像</h2></div>{workspace?.profile.confirmed_at && <small><Check size={13} />已确认</small>}</header>
       <p className="career-privacy-note">这里只保存你主动确认的目标；Agent 建议不会自动写入。</p>
       <div className="career-form-grid"><label><span>目标岗位</span><input required maxLength={150} value={profile.target_role} onChange={(event) => setProfile({ ...profile, target_role: event.target.value })} /></label><label><span>目标级别</span><input maxLength={50} value={profile.target_level} onChange={(event) => setProfile({ ...profile, target_level: event.target.value })} /></label><label><span>目标公司</span><input value={profile.target_companies} onChange={(event) => setProfile({ ...profile, target_companies: event.target.value })} placeholder="用逗号分隔" /></label><label><span>意向城市</span><input value={profile.preferred_cities} onChange={(event) => setProfile({ ...profile, preferred_cities: event.target.value })} placeholder="用逗号分隔" /></label><label><span>每周投入（小时）</span><input type="number" min={1} max={80} value={profile.weekly_hours} onChange={(event) => setProfile({ ...profile, weekly_hours: Number(event.target.value) })} /></label><label className="career-wide"><span>现实约束</span><textarea maxLength={2000} value={profile.constraints} onChange={(event) => setProfile({ ...profile, constraints: event.target.value })} placeholder="例如：工作日晚间最多 1 小时、暂不考虑异地" /></label></div>
-      <button className="primary-cta" disabled={saving === "profile"} type="submit">{saving === "profile" ? <LoaderCircle className="spin" size={15} /> : <Save size={15} />}确认并保存画像</button>
+      <div className="career-actions">{workspace?.profile.confirmed_at && <button className="career-delete" disabled={saving === "profile"} type="button" onClick={() => void deleteProfile()}><Trash2 size={14} />清除画像</button>}<button className="primary-cta" disabled={saving === "profile"} type="submit">{saving === "profile" ? <LoaderCircle className="spin" size={15} /> : <Save size={15} />}确认并保存画像</button></div>
     </form>
 
     <form className="career-panel weekly-plan-panel" onSubmit={savePlan}>
@@ -104,7 +138,7 @@ export function CareerPlanner() {
       <label className="plan-goal"><span>本周目标</span><input required maxLength={500} value={goal} onChange={(event) => setGoal(event.target.value)} /></label>
       <div className="plan-items">{items.map((item) => <article key={item.id}><select value={item.category} onChange={(event) => updateItem(item.id, { category: event.target.value as WeeklyPlanItem["category"] })}>{Object.entries(categoryLabels).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select><input aria-label="计划事项" required maxLength={200} value={item.title} onChange={(event) => updateItem(item.id, { title: event.target.value })} placeholder="具体行动" /><label><span>进度</span><input type="number" min={0} max={item.target_count} value={item.completed_count} onChange={(event) => updateItem(item.id, { completed_count: Math.min(item.target_count, Number(event.target.value)) })} /><i>/</i><input aria-label="目标数量" type="number" min={1} max={100} value={item.target_count} onChange={(event) => updateItem(item.id, { target_count: Math.max(1, Number(event.target.value)), completed_count: Math.min(item.completed_count, Math.max(1, Number(event.target.value))) })} /></label><button type="button" title="删除事项" aria-label="删除计划事项" onClick={() => setItems((current) => current.filter((entry) => entry.id !== item.id))}><Trash2 size={15} /></button></article>)}</div>
       <button className="plan-add" type="button" onClick={addItem}><Plus size={15} />添加行动</button>
-      <button className="primary-cta" disabled={saving === "plan" || items.length === 0} type="submit">{saving === "plan" ? <LoaderCircle className="spin" size={15} /> : <Save size={15} />}保存本周计划</button>
+      <div className="career-actions">{workspace?.weekly_plan && <button className="career-delete" disabled={saving === "plan"} type="button" onClick={() => void deletePlan()}><Trash2 size={14} />删除周计划</button>}<button className="primary-cta" disabled={saving === "plan" || items.length === 0} type="submit">{saving === "plan" ? <LoaderCircle className="spin" size={15} /> : <Save size={15} />}保存本周计划</button></div>
     </form>
     {message && <p className="career-message">{message}</p>}{error && <p className="career-error" role="alert">{error}</p>}
   </div>;
