@@ -40,8 +40,12 @@ export const abilityProfileSchema: z.ZodType<AbilityProfileData> = z.object({
       session_count: z.number().int().positive(),
       source_session_id: z.string().uuid(),
       latest_feedback: z.string(),
+      trend: z.number().int().min(-100).max(100),
+      mastery_status: z.enum(["practice", "improving", "stable"]),
     })),
     next_mode: z.enum(["structured_expression", "business_sense"]).nullable(),
     next_focus: z.string().nullable(),
+    current_streak_days: z.number().int().nonnegative(),
+    next_difficulty: z.enum(["guided", "assisted", "pressure"]),
   }),
 });

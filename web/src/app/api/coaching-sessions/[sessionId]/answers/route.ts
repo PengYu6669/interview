@@ -7,6 +7,7 @@ const schema = z.object({
   client_message_id: z.string().uuid(),
   answer: z.string().min(1).max(20_000),
   answer_mode: z.enum(["text", "voice"]),
+  elapsed_seconds: z.number().int().min(0).max(3_600).nullable().optional(),
 });
 
 export async function POST(request: NextRequest, context: RouteContext<"/api/coaching-sessions/[sessionId]/answers">) {

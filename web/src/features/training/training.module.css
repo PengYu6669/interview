@@ -28,6 +28,17 @@
   line-height: 1.75;
 }
 
+.taskMeta { display: flex; gap: 6px; }
+.taskMeta span { border: 1px solid var(--line); border-radius: 4px; background: #fff; padding: 6px 8px; color: var(--muted); font-size: 12px; }
+
+.dailyPlan { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin-top: 22px; border-block: 1px solid var(--line); background: #f7faf9; padding: 14px 16px; }
+.dailyPlan > div { display: flex; align-items: flex-start; gap: 10px; }
+.dailyPlan > div > svg { margin-top: 2px; color: var(--accent); }
+.dailyPlan span, .dailyPlan strong, .dailyPlan small { display: block; }
+.dailyPlan span, .dailyPlan small { color: var(--muted); font-size: 12px; }
+.dailyPlan strong { margin: 3px 0; font-size: 13px; }
+.dailyPlan > a { display: inline-flex; min-height: 36px; flex: none; align-items: center; gap: 6px; border-radius: 4px; background: var(--ink); padding: 0 12px; color: #fff; font-size: 12px; font-weight: 700; }
+
 .modeGrid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -206,6 +217,36 @@
   border: 0;
 }
 
+.optionChoice {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  border: 0;
+}
+
+.optionChoice legend {
+  grid-column: 1 / -1;
+  margin-bottom: 2px;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.optionChoice button {
+  min-height: 42px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: #fafbfb;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.optionChoice .selected {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-dark);
+  font-weight: 700;
+}
+
 .channelChoice legend {
   grid-column: 1 / -1;
   margin-bottom: 2px;
@@ -328,9 +369,30 @@
 
 .roomMain { overflow: hidden; }
 .roomHeader { padding: 20px 22px; border-bottom: 1px solid var(--line); }
+.roomHeader > div:first-child { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .roomHeader h2 { font-size: 16px; }
 .roomHeader p { margin-top: 6px; color: var(--muted); font-size: 13px; }
+.timer { display: inline-flex; align-items: center; gap: 5px; color: var(--accent-dark); font: 12px var(--font-geist-mono), monospace; }
+.timeUp { color: var(--danger); }
+.factStrip { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin-top: 12px; }
+.factStrip div { border-left: 2px solid #9fbdb8; background: #f5f8f7; padding: 7px 9px; }
+.factStrip dt { color: var(--muted); font-size: 12px; }
+.factStrip dd { margin-top: 3px; font-size: 12px; font-weight: 650; }
 .conversation { display: grid; gap: 18px; padding: 24px; }
+
+.puzzle { display: grid; gap: 12px; padding: 24px; }
+.puzzle h2 { font-size: 18px; }
+.puzzle > p { color: var(--muted); font-size: 13px; }
+.puzzleList { display: grid; gap: 7px; }
+.puzzleList label { display: grid; grid-template-columns: minmax(0, 1fr) 150px; align-items: center; gap: 12px; border: 1px solid var(--line); border-radius: 5px; padding: 9px 10px; }
+.puzzleList label > span { font-size: 13px; line-height: 1.6; }
+.puzzleList select { min-height: 36px; border: 1px solid var(--line); border-radius: 4px; background: #fff; padding: 0 8px; font-size: 12px; }
+
+.scaffold { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 7px; }
+.scaffold article { display: flex; min-height: 72px; gap: 8px; border: 1px solid #bdd5d1; border-radius: 5px; background: #f4f9f8; padding: 10px; }
+.scaffold article > span { display: grid; width: 22px; height: 22px; flex: none; place-items: center; border-radius: 50%; background: var(--accent); color: #fff; font-size: 12px; font-weight: 700; }
+.scaffold strong { font-size: 12px; }
+.scaffold p { margin-top: 4px; color: var(--muted); font-size: 12px; line-height: 1.5; }
 
 .questionBlock {
   border-left: 3px solid var(--accent);
@@ -347,6 +409,38 @@
   border-top: 1px solid var(--line);
   padding-top: 18px;
 }
+
+.attemptHeading { display: flex; align-items: center; justify-content: space-between; }
+.attemptHeading span { color: var(--accent-dark); font-size: 12px; font-weight: 750; }
+.attemptHeading small { color: var(--muted); font: 12px var(--font-geist-mono), monospace; }
+.deliveryMetrics { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.deliveryMetrics span { border-radius: 3px; background: #f1f4f3; padding: 4px 6px; color: #53605e; font-size: 12px; }
+.deliveryMetrics small { width: 100%; color: var(--muted); font-size: 12px; }
+.evidenceMap { display: grid; gap: 6px; }
+.evidenceMap blockquote { border-left: 3px solid #7aa9a2; background: #f6f9f8; padding: 8px 10px; color: #3f504d; font-size: 12px; line-height: 1.6; }
+.evidenceMap blockquote span { margin-right: 7px; color: var(--accent-dark); font-weight: 750; }
+.gapList { display: grid; gap: 7px; }
+.gapList article { display: flex; gap: 9px; border: 1px solid #ebcda6; background: #fff9ef; padding: 10px; }
+.gapList svg { flex: none; margin-top: 2px; color: #9a671d; }
+.gapList strong { font-size: 12px; }
+.gapList p, .gapList small { display: block; margin-top: 3px; color: #705838; font-size: 12px; line-height: 1.55; }
+
+.comparison { display: grid; gap: 12px; border-top: 1px solid var(--line); padding-top: 20px; }
+.comparison > div:first-child { display: flex; align-items: center; gap: 7px; }
+.comparison > div:first-child svg { color: var(--accent); }
+.comparison h2 { font-size: 16px; }
+.comparison > p { color: var(--muted); font-size: 13px; line-height: 1.65; }
+.comparison > div:last-child { display: grid; gap: 8px; }
+.comparison article { border: 1px solid var(--line); border-left: 3px solid #9aa5a2; padding: 11px; }
+.comparison article.improved { border-left-color: var(--success); }
+.comparison article.regressed { border-left-color: var(--danger); }
+.comparison article > header { display: flex; justify-content: space-between; gap: 10px; }
+.comparison article > header strong, .comparison article > header span { font-size: 12px; }
+.comparison article > header span { color: var(--muted); }
+.comparison article > div { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 8px; margin-top: 8px; }
+.comparison blockquote { min-width: 0; background: #f6f8f7; padding: 8px; font-size: 12px; line-height: 1.55; }
+.comparison blockquote small { display: block; margin-bottom: 3px; color: var(--muted); }
+.comparison article > p { margin-top: 7px; color: var(--muted); font-size: 12px; }
 
 .turnLabel { color: var(--muted); font-size: 12px; font-weight: 700; }
 .answer { white-space: pre-wrap; font-size: 14px; line-height: 1.75; }
@@ -368,6 +462,10 @@
 .roomSide { position: sticky; top: 88px; padding: 20px; }
 .roomSide h3 { font-size: 14px; }
 .roomSide p { margin-top: 8px; color: var(--muted); font-size: 12px; line-height: 1.65; }
+.nextPractice { display: grid; gap: 8px; margin-top: 18px; border-top: 1px solid var(--line); padding-top: 16px; }
+.nextPractice > svg { color: var(--success); }
+.nextPractice strong { font-size: 13px; }
+.nextPractice p { margin: 0 0 4px; }
 
 @media (max-width: 900px) {
   .modeGrid { grid-template-columns: 1fr; }
@@ -380,12 +478,21 @@
   .page { width: min(100% - 28px, 1160px); padding-top: 26px; }
   .intro { align-items: start; flex-direction: column; }
   .intro h1 { font-size: 27px; }
+  .taskMeta { flex-wrap: wrap; }
+  .dailyPlan { align-items: stretch; flex-direction: column; }
+  .dailyPlan > a { justify-content: center; }
   .recentRow { grid-template-columns: minmax(0, 1fr) auto; gap: 10px; }
   .recentRow time { display: none; }
   .form, .preview { padding: 18px; }
   .conversation { padding: 18px; }
   .assessmentGrid { grid-template-columns: 1fr; }
+  .scaffold { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .factStrip { grid-template-columns: 1fr; }
+  .puzzleList label { grid-template-columns: 1fr; }
+  .comparison article > div { grid-template-columns: 1fr; }
+  .comparison article > div > svg { transform: rotate(90deg); }
   .composerActions { align-items: stretch; flex-direction: column; }
   .composerActions button { width: 100%; }
   .composerButtons { display: grid; grid-template-columns: 1fr 1fr; width: 100%; }
+  .optionChoice { grid-template-columns: 1fr; }
 }

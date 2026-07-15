@@ -1,10 +1,18 @@
 {
-  "version": "business-sense-rubric-v1",
+  "version": "business-sense-rubric-v2",
   "scale": {"min": 1, "max": 5},
+  "anchors": {
+    "1": "没有定义相关问题或仅给出无依据结论",
+    "2": "识别部分目标或约束，但决策链存在关键断点",
+    "3": "决策基本可解释，仍缺指标、假设、风险或验证中的一项",
+    "4": "目标、依据、取舍和验证形成闭环，只有次要缺口",
+    "5": "能处理不确定性和约束变化，并设计清晰的验证与退出条件"
+  },
   "dimensions": [
     {"key": "user_problem", "label": "用户问题", "question": "是否识别目标用户和真实问题"},
     {"key": "business_goal", "label": "业务目标", "question": "是否明确业务结果而非只描述功能"},
     {"key": "metrics", "label": "指标设计", "question": "是否包含核心指标、护栏指标和观察周期"},
+    {"key": "assumptions", "label": "关键假设", "question": "是否明确推理依赖的假设、范围和不确定性"},
     {"key": "prioritization", "label": "方案优先级", "question": "是否根据价值、成本和依赖确定顺序"},
     {"key": "economics", "label": "成本收益", "question": "是否考虑开发、推理、运营成本及预期收益"},
     {"key": "risk", "label": "风险控制", "question": "是否识别体验、合规、数据和模型失败风险"},

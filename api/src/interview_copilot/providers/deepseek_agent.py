@@ -20,7 +20,7 @@ class DeepSeekAgentError(RuntimeError):
 
 
 class DeepSeekFunctionCallingClient:
-    prompt_version = "training-coach-agent-v1"
+    prompt_version = "training-coach-agent-v2-deliberate-practice"
 
     def __init__(
         self,
@@ -49,9 +49,12 @@ class DeepSeekFunctionCallingClient:
         allowed_tools: set[str],
         output_model: type[OutputModel],
         max_tool_calls: int = 4,
+        max_output_tokens: int = 3_000,
     ) -> OutputModel:
         if not 0 <= max_tool_calls <= 8:
             raise ValueError("单次 Agent 工具调用上限必须为 0 至 8")
+        if not 500 <= max_output_tokens <= 6_000:
+            raise ValueError("Agent 输出预算必须为 500 至 6000 tokens")
         schema = output_model.model_json_schema()
         messages: list[dict[str, object]] = [
             {
@@ -76,7 +79,11 @@ class DeepSeekFunctionCallingClient:
         finalization_requested = False
 
         for _ in range(max_tool_calls + 2):
-            message = await self._chat(messages=messages, tools=tool_definitions)
+            message = await self._chat(
+                messages=messages,
+                tools=tool_definitions,
+                max_output_tokens=max_output_tokens,
+            )
             raw_calls = message.get("tool_calls")
             if raw_calls:
                 if not isinstance(raw_calls, list):
@@ -117,7 +124,7 @@ class DeepSeekFunctionCallingClient:
             try:
                 return output_model.model_validate_json(content)
             except ValidationError as exc:
-                if finalization_requested or not tool_definitions:
+                if finalization_requested:
                     details = ", ".join(
                         f"{'.'.join(str(part) for part in item['loc']) or '根节点'}:{item['type']}"
                         for item in exc.errors()[:4]
@@ -147,12 +154,13 @@ class DeepSeekFunctionCallingClient:
         *,
         messages: list[dict[str, object]],
         tools: list[dict[str, object]],
+        max_output_tokens: int,
     ) -> dict[str, object]:
         payload: dict[str, object] = {
             "model": self._model,
             "messages": messages,
             "temperature": 0,
-            "max_tokens": 3000,
+            "max_tokens": max_output_tokens,
         }
         if tools:
             payload["tools"] = tools

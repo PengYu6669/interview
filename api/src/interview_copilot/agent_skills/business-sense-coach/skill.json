@@ -1,8 +1,8 @@
 {
   "name": "business-sense-coach",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "title": "业务 Sense 训练",
-  "description": "训练用户问题、业务目标、指标、优先级、成本收益、风险和验证复盘。",
+  "description": "面向技术岗位的业务决策与费米估算教练，训练目标、指标、假设、优先级、经济性、风险和验证。",
   "training_mode": "business_sense",
   "instruction_file": "SKILL.md",
   "rubric_file": "rubric.json"

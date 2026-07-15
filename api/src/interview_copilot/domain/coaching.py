@@ -2,12 +2,51 @@ from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 CoachingMode = Literal["structured_expression", "business_sense"]
 CoachingChannel = Literal["text", "voice"]
 CoachingStatus = Literal["planned", "active", "completed"]
 CoachingAction = Literal["follow_up", "retry", "complete"]
+CoachingExerciseType = Literal[
+    "star_story", "prep_pitch", "structure_puzzle", "decision_simulation", "fermi_estimation"
+]
+CoachingDifficulty = Literal["guided", "assisted", "pressure"]
+CoachingFramework = Literal["star", "prep", "business_decision", "fermi"]
+ComparisonChange = Literal["improved", "stable", "regressed", "insufficient"]
+
+
+class CoachingScaffoldStep(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    key: str = Field(min_length=1, max_length=30)
+    label: str = Field(min_length=1, max_length=40)
+    prompt: str = Field(min_length=1, max_length=200)
+
+
+class StructurePuzzleFragment(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: str = Field(pattern=r"^[a-z0-9-]+$", max_length=40)
+    text: str = Field(min_length=1, max_length=240)
+    target_key: str = Field(min_length=1, max_length=30)
+    distractor: bool = False
+
+
+class StructurePuzzle(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    instruction: str = Field(min_length=1, max_length=300)
+    fragments: list[StructurePuzzleFragment] = Field(min_length=4, max_length=10)
+
+
+class CoachingScenarioFact(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    label: str = Field(min_length=1, max_length=80)
+    value: str = Field(min_length=1, max_length=300)
+    source_type: Literal["virtual", "curated"] = "virtual"
+    source_label: str | None = Field(default=None, max_length=160)
 
 
 class CoachingTaskPlan(BaseModel):
@@ -18,7 +57,17 @@ class CoachingTaskPlan(BaseModel):
     scenario: str = Field(min_length=1, max_length=3_000)
     primary_question: str = Field(min_length=1, max_length=1_500)
     estimated_minutes: int = Field(ge=5, le=30)
-    dimensions: list[str] = Field(min_length=2, max_length=7)
+    dimensions: list[str] = Field(min_length=2, max_length=8)
+    exercise_type: CoachingExerciseType = "star_story"
+    framework: CoachingFramework = "star"
+    difficulty: CoachingDifficulty = "guided"
+    time_limit_seconds: int = Field(default=180, ge=60, le=900)
+    target_dimension: str = Field(default="conclusion", min_length=1, max_length=60)
+    scaffold: list[CoachingScaffoldStep] = Field(default_factory=list, max_length=8)
+    puzzle: StructurePuzzle | None = None
+    scenario_version: str = Field(default="generated-v1", min_length=1, max_length=80)
+    facts: list[CoachingScenarioFact] = Field(default_factory=list, max_length=12)
+    constraint_change: str | None = Field(default=None, max_length=500)
 
 
 class DimensionAssessment(BaseModel):
@@ -49,14 +98,99 @@ class DimensionAssessment(BaseModel):
         return self
 
 
+class CoachingEvidenceSegment(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    key: str = Field(min_length=1, max_length=60)
+    label: str = Field(min_length=1, max_length=80)
+    evidence_quote: str = Field(min_length=1, max_length=500)
+
+
+class CoachingPriorityGap(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    dimension: str = Field(min_length=1, max_length=60)
+    diagnosis: str = Field(min_length=1, max_length=300)
+    retry_prompt: str = Field(min_length=1, max_length=300)
+
+
+class CoachingComparisonItem(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    dimension: str = Field(min_length=1, max_length=60)
+    change: ComparisonChange
+    before_level: int | None = Field(default=None, ge=1, le=5)
+    after_level: int | None = Field(default=None, ge=1, le=5)
+    before_quote: str | None = Field(default=None, max_length=500)
+    after_quote: str | None = Field(default=None, max_length=500)
+    explanation: str = Field(min_length=1, max_length=400)
+
+    @model_validator(mode="after")
+    def validate_change_evidence(self) -> "CoachingComparisonItem":
+        if self.change == "insufficient":
+            return self
+        if (
+            self.before_level is None
+            or self.after_level is None
+            or not self.before_quote
+            or not self.after_quote
+        ):
+            self.change = "insufficient"
+            self.before_level = None
+            self.after_level = None
+            return self
+        if self.after_level > self.before_level:
+            self.change = "improved"
+        elif self.after_level < self.before_level:
+            self.change = "regressed"
+        else:
+            self.change = "stable"
+        return self
+
+
+class CoachingAttemptComparison(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    items: list[CoachingComparisonItem] = Field(min_length=1, max_length=8)
+    overall_summary: str = Field(min_length=1, max_length=600)
+
+
+class CoachingNextPractice(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    focus: str = Field(min_length=1, max_length=300)
+    recommended_difficulty: CoachingDifficulty
+    estimated_minutes: int = Field(default=10, ge=5, le=20)
+
+
+class CoachingDeliveryMetrics(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    source: Literal["voice_transcript", "text"]
+    character_count: int = Field(ge=0, le=20_000)
+    characters_per_minute: int | None = Field(default=None, ge=0, le=20_000)
+    filler_counts: dict[str, int] = Field(default_factory=dict)
+    filler_total: int = Field(ge=0)
+
+
 class CoachingDecision(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     action: CoachingAction
     coach_reply: str = Field(min_length=1, max_length=1_000)
     next_question: str | None = Field(default=None, max_length=1_500)
-    assessments: list[DimensionAssessment] = Field(min_length=1, max_length=7)
+    assessments: list[DimensionAssessment] = Field(min_length=1, max_length=8)
     summary: str = Field(min_length=1, max_length=1_000)
+    evidence_segments: list[CoachingEvidenceSegment] = Field(default_factory=list, max_length=12)
+    priority_gaps: list[CoachingPriorityGap] = Field(default_factory=list, max_length=2)
+    comparison: CoachingAttemptComparison | None = None
+    next_practice: CoachingNextPractice | None = None
+    delivery_metrics: CoachingDeliveryMetrics | None = None
+
+    @field_validator("evidence_segments", "priority_gaps", mode="before")
+    @classmethod
+    def normalize_optional_lists(cls, value: object) -> object:
+        return [] if value is None else value
 
     @model_validator(mode="after")
     def validate_next_question(self) -> "CoachingDecision":
@@ -72,6 +206,8 @@ class CoachingTurnData(BaseModel):
     sequence: int
     answer: str
     answer_mode: CoachingChannel
+    attempt_number: int = Field(default=1, ge=1, le=3)
+    elapsed_seconds: int | None = Field(default=None, ge=0, le=3_600)
     decision: CoachingDecision
     created_at: datetime
 
@@ -102,4 +238,6 @@ class CoachingSessionSummary(BaseModel):
     target_role: str
     current_question: str | None
     turn_count: int = Field(ge=0)
+    exercise_type: CoachingExerciseType = "star_story"
+    difficulty: CoachingDifficulty = "guided"
     updated_at: datetime

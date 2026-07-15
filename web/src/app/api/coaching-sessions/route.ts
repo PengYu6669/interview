@@ -9,6 +9,8 @@ const createSchema = z.object({
   target_role: z.string().min(1).max(150),
   training_goal: z.string().max(500),
   source_ids: z.array(z.string().uuid()).max(30),
+  exercise_type: z.enum(["star_story", "prep_pitch", "structure_puzzle", "decision_simulation", "fermi_estimation"]).optional(),
+  difficulty: z.enum(["guided", "assisted", "pressure"]).default("guided"),
 });
 
 export async function GET(request: NextRequest) {

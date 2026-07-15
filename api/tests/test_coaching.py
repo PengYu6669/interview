@@ -11,8 +11,16 @@ from interview_copilot.api import coaching as coaching_api
 from interview_copilot.api.coaching import create_coaching_speech_ticket
 from interview_copilot.application.agent.skills import ActivatedSkill, SkillMetadata
 from interview_copilot.application.coaching import CoachingService
+from interview_copilot.application.coaching_protocol import (
+    normalize_task_plan,
+    resolve_exercise,
+)
 from interview_copilot.domain.coaching import (
+    CoachingAttemptComparison,
+    CoachingComparisonItem,
     CoachingDecision,
+    CoachingNextPractice,
+    CoachingPriorityGap,
     CoachingTaskPlan,
     DimensionAssessment,
 )
@@ -53,9 +61,9 @@ class FakeCoach:
         self.evaluate_calls += 1
         complete = self.evaluate_calls > 1
         return CoachingDecision(
-            action="complete" if complete else "follow_up",
+            action="complete" if complete else "retry",
             coach_reply="已收到回答。",
-            next_question=None if complete else "请补充你的个人决策。",
+            next_question=None if complete else "请重新说明你在项目中的核心贡献。",
             assessments=[
                 DimensionAssessment(
                     key="conclusion",
@@ -67,6 +75,39 @@ class FakeCoach:
                 )
             ],
             summary="继续补充个人贡献。" if not complete else "本次训练完成。",
+            priority_gaps=[] if complete else [
+                CoachingPriorityGap(
+                    dimension="ownership",
+                    diagnosis="个人职责不够具体。",
+                    retry_prompt="用一句话说清你独立负责的范围。",
+                )
+            ],
+            comparison=(
+                CoachingAttemptComparison(
+                    items=[
+                        CoachingComparisonItem(
+                            dimension="ownership",
+                            change="improved",
+                            before_level=2,
+                            after_level=4,
+                            before_quote="我负责检索链路。",
+                            after_quote="我选择混合检索并负责评测。",
+                            explanation="重答补充了具体决策与职责。",
+                        )
+                    ],
+                    overall_summary="个人贡献比首次回答更具体。",
+                )
+                if complete
+                else None
+            ),
+            next_practice=(
+                CoachingNextPractice(
+                    focus="继续练习方案取舍",
+                    recommended_difficulty="assisted",
+                )
+                if complete
+                else None
+            ),
         )
 
 
@@ -119,6 +160,7 @@ async def test_coaching_session_requires_start_is_idempotent_and_completes() -> 
             client_message_id=message_id,
             answer="我负责检索链路。",
             answer_mode="text",
+            elapsed_seconds=45,
         )
         repeated = await service.answer(
             user_id=owner.id,
@@ -136,6 +178,10 @@ async def test_coaching_session_requires_start_is_idempotent_and_completes() -> 
         )
 
         assert len(first.turns) == 1
+        assert first.turns[0].attempt_number == 1
+        assert first.turns[0].elapsed_seconds == 45
+        assert first.turns[0].decision.delivery_metrics is not None
+        assert first.turns[0].decision.delivery_metrics.character_count == len("我负责检索链路。")
         assert len(repeated.turns) == 1
         assert coach.evaluate_calls == 2
         assert completed.status == "completed"
@@ -154,6 +200,75 @@ def test_dimension_assessment_requires_real_evidence_shape() -> None:
             feedback="职责基本明确。",
             confidence=0.7,
         )
+
+
+def test_comparison_change_is_derived_from_consistent_levels_and_quotes() -> None:
+    comparison = CoachingComparisonItem(
+        dimension="ownership",
+        change="improved",
+        before_level=4,
+        after_level=3,
+        before_quote="第一次回答",
+        after_quote="第二次回答",
+        explanation="模型错误地标记为进步。",
+    )
+
+    assert comparison.change == "regressed"
+
+
+def test_comparison_without_double_sided_evidence_becomes_insufficient() -> None:
+    comparison = CoachingComparisonItem(
+        dimension="ownership",
+        change="improved",
+        before_level=2,
+        after_level=4,
+        before_quote="第一次回答",
+        after_quote=None,
+        explanation="缺少第二次回答原句。",
+    )
+
+    assert comparison.change == "insufficient"
+    assert comparison.before_level is None
+    assert comparison.after_level is None
+
+
+def test_business_protocol_pins_versioned_scenario_and_progressive_hints() -> None:
+    generated = CoachingTaskPlan(
+        title="模型生成的标题",
+        objective="训练业务决策",
+        scenario="模型生成的场景",
+        primary_question="模型生成的问题",
+        estimated_minutes=10,
+        dimensions=["business_goal", "metrics", "assumptions", "validation"],
+        exercise_type="decision_simulation",
+        framework="business_decision",
+        difficulty="pressure",
+        target_dimension="metrics",
+    )
+
+    normalized = normalize_task_plan(
+        generated,
+        mode="business_sense",
+        exercise_type="decision_simulation",
+        difficulty="pressure",
+    )
+
+    assert normalized.scenario_version == "decision-retention-2026-01"
+    assert normalized.primary_question.startswith("你会如何定义问题")
+    assert normalized.facts[0].source_type == "virtual"
+    assert normalized.time_limit_seconds == 120
+    assert normalized.puzzle is None
+    assert [item.key for item in normalized.scaffold] == [
+        "goal",
+        "diagnosis",
+        "priority",
+        "guardrail",
+    ]
+
+
+def test_exercise_type_must_match_training_mode() -> None:
+    with pytest.raises(ValueError, match="不匹配"):
+        resolve_exercise("structured_expression", "fermi_estimation")
 
 
 def test_coaching_speech_ticket_requires_an_owned_active_session(

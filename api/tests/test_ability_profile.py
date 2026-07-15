@@ -268,6 +268,88 @@ def test_profile_keeps_specialized_training_evidence_separate_from_kline() -> No
         assert profile.coaching.next_mode == "structured_expression"
 
 
+def test_coaching_mastery_requires_three_independent_strong_sessions() -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    with Session(engine, expire_on_commit=False) as session:
+        user = UserRecord(
+            username="mastery-owner",
+            email="mastery@example.com",
+            password_hash="hash",
+            created_at=datetime.now(UTC),
+        )
+        session.add(user)
+        session.flush()
+        for offset in (2, 1, 0):
+            completed_at = datetime.now(UTC) - timedelta(days=offset)
+            coaching = CoachingSessionRecord(
+                user_id=user.id,
+                mode="structured_expression",
+                channel="voice",
+                status="completed",
+                target_role="后端工程师",
+                training_goal="练习结论先行",
+                skill_name="structured-expression-coach",
+                skill_version="2.0.0",
+                task=CoachingTaskPlan(
+                    title="项目表达",
+                    objective="先说结论",
+                    scenario="技术面试",
+                    primary_question="请介绍项目。",
+                    estimated_minutes=10,
+                    dimensions=["conclusion", "ownership"],
+                ).model_dump(mode="json"),
+                current_question=None,
+                source_ids=[],
+                model="fake-model",
+                prompt_version="fake-prompt-v2",
+                created_at=completed_at,
+                updated_at=completed_at,
+                completed_at=completed_at,
+            )
+            session.add(coaching)
+            session.flush()
+            decision = CoachingDecision(
+                action="complete",
+                coach_reply="回答完成。",
+                next_question=None,
+                assessments=[
+                    DimensionAssessment(
+                        key="conclusion",
+                        status="observed",
+                        level=4,
+                        evidence_quote="我的结论是采用渐进迁移。",
+                        feedback="结论明确。",
+                        confidence=0.8,
+                    )
+                ],
+                summary="结论稳定。",
+            )
+            session.add(
+                CoachingTurnRecord(
+                    session_id=coaching.id,
+                    client_message_id=uuid4(),
+                    sequence=2,
+                    answer="我的结论是采用渐进迁移。",
+                    answer_mode="voice",
+                    attempt_number=2,
+                    elapsed_seconds=60,
+                    decision=decision.model_dump(mode="json"),
+                    model="fake-model",
+                    prompt_version="fake-prompt-v2",
+                    created_at=completed_at,
+                )
+            )
+        session.commit()
+
+        profile = AbilityProfileService(session).get(user_id=user.id)
+
+        assert profile.coaching.skills[0].mastery_status == "stable"
+        assert profile.coaching.skills[0].session_count == 3
+        assert profile.coaching.current_streak_days == 3
+        assert profile.coaching.next_difficulty == "pressure"
+
+
 def _report(
     session: Session,
     user_id,

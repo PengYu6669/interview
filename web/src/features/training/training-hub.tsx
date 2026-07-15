@@ -1,10 +1,11 @@
 "use client";
 
-import { ArrowRight, BriefcaseBusiness, ListTree, MessageSquareText, Sparkles } from "lucide-react";
+import { ArrowRight, BriefcaseBusiness, ListTree, MessageSquareText, Sparkles, Target } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { COACHING_MODE_LABELS, CoachingSummary, coachingSummarySchema } from "@/lib/coaching";
+import { AbilityProfileData, abilityProfileSchema } from "@/lib/ability-profile";
 
 import styles from "./training.module.css";
 
@@ -17,6 +18,7 @@ const modes = [
 export function TrainingHub() {
   const [recent, setRecent] = useState<CoachingSummary[]>([]);
   const [loading, setLoading] = useState(true);
+  const [plan, setPlan] = useState<AbilityProfileData["coaching"] | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -25,6 +27,11 @@ export function TrainingHub() {
       const parsed = coachingSummarySchema.safeParse(await response.json());
       if (mounted && parsed.success) setRecent(parsed.data);
     }).finally(() => { if (mounted) setLoading(false); });
+    void fetch("/api/profile", { cache: "no-store" }).then(async (response) => {
+      if (!response.ok) return;
+      const parsed = abilityProfileSchema.safeParse(await response.json());
+      if (mounted && parsed.success) setPlan(parsed.data.coaching);
+    });
     return () => { mounted = false; };
   }, []);
 
@@ -32,6 +39,7 @@ export function TrainingHub() {
     <header className={styles.intro}>
       <div><p className="eyebrow">训练中心</p><h1>今天重点练什么？</h1><p>选择一种训练方式，完成后再看证据与改进。</p></div>
     </header>
+    {plan?.next_mode && <section className={styles.dailyPlan}><div><Target size={18} /><div><span>下一次 10 分钟</span><strong>{plan.next_focus}</strong><small>连续训练 {plan.current_streak_days} 天 · 推荐 {plan.next_difficulty === "guided" ? "有骨架" : plan.next_difficulty === "assisted" ? "关键词提示" : "限时脱稿"}</small></div></div><Link href={`/training/new?mode=${plan.next_mode}&difficulty=${plan.next_difficulty}&focus=${encodeURIComponent(plan.next_focus ?? "")}`}>开始今日训练 <ArrowRight size={15} /></Link></section>}
     <section className={styles.modeGrid} aria-label="训练方式">
       {modes.map(({ href, title, description, icon: Icon }) => <Link className={styles.modeCard} href={href} key={title}>
         <span className={styles.modeIcon}><Icon size={21} /></span><h2>{title}</h2><p>{description}</p><span className={styles.modeAction}>开始训练 <ArrowRight size={16} /></span>

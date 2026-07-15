@@ -1,4 +1,5 @@
 from collections import defaultdict
+from datetime import UTC, datetime, timedelta
 from typing import cast
 from uuid import UUID
 
@@ -160,6 +161,8 @@ class AbilityProfileService:
                 skills=[],
                 next_mode=None,
                 next_focus=None,
+                current_streak_days=0,
+                next_difficulty="guided",
             )
         session_modes: dict[UUID, CoachingMode] = {
             item.id: cast(CoachingMode, item.mode) for item in sessions
@@ -189,32 +192,87 @@ class AbilityProfileService:
 
         skills: list[CoachingAbilityItem] = []
         for dimension, values in history.items():
-            total_weight = sum(max(0.01, confidence) for _, confidence, *_ in values)
+            latest_by_session: dict[
+                UUID, tuple[int, float, UUID, str, CoachingMode]
+            ] = {}
+            for value in values:
+                latest_by_session[value[2]] = value
+            session_values = list(latest_by_session.values())
+            total_weight = sum(
+                max(0.01, confidence) for _, confidence, *_ in session_values
+            )
             score = round(
-                sum(level * 20 * max(0.01, confidence) for level, confidence, *_ in values)
+                sum(
+                    level * 20 * max(0.01, confidence)
+                    for level, confidence, *_ in session_values
+                )
                 / total_weight
             )
-            latest = values[-1]
+            latest = session_values[-1]
+            trend = (
+                (session_values[-1][0] - session_values[-2][0]) * 20
+                if len(session_values) > 1
+                else 0
+            )
+            stable = len(session_values) >= 3 and all(
+                level >= 4 and confidence >= 0.6
+                for level, confidence, *_ in session_values[-3:]
+            )
             skills.append(
                 CoachingAbilityItem(
                     dimension=dimension,
                     mode=latest[4],
                     score=score,
                     confidence=round(
-                        sum(confidence for _, confidence, *_ in values) / len(values), 3
+                        sum(confidence for _, confidence, *_ in session_values)
+                        / len(session_values),
+                        3,
                     ),
                     evidence_count=len(values),
-                    session_count=len({session_id for _, _, session_id, _, _ in values}),
+                    session_count=len(session_values),
                     source_session_id=latest[2],
                     latest_feedback=latest[3],
+                    trend=trend,
+                    mastery_status=(
+                        "stable" if stable else "improving" if trend > 0 else "practice"
+                    ),
                 )
             )
         skills.sort(key=lambda item: (item.score, item.dimension))
-        next_skill = skills[0] if skills else None
+        next_skill = next(
+            (item for item in skills if item.mastery_status != "stable"),
+            skills[0] if skills else None,
+        )
+        completed = [item for item in sessions if item.status == "completed"]
+        stable_count = sum(item.mastery_status == "stable" for item in skills)
         return CoachingProfileSummary(
             session_count=len(sessions),
-            completed_count=sum(item.status == "completed" for item in sessions),
+            completed_count=len(completed),
             skills=skills,
             next_mode=next_skill.mode if next_skill else None,
             next_focus=next_skill.latest_feedback if next_skill else None,
+            current_streak_days=self._current_streak_days(completed),
+            next_difficulty=(
+                "pressure"
+                if len(completed) >= 3 and stable_count > 0
+                else "assisted" if completed else "guided"
+            ),
         )
+
+    @staticmethod
+    def _current_streak_days(sessions: list[CoachingSessionRecord]) -> int:
+        days = sorted(
+            {item.completed_at.date() for item in sessions if item.completed_at},
+            reverse=True,
+        )
+        if not days:
+            return 0
+        today = datetime.now(UTC).date()
+        if days[0] not in {today, today - timedelta(days=1)}:
+            return 0
+        streak = 1
+        for previous, current in zip(days, days[1:], strict=False):
+            if previous - current != timedelta(days=1):
+                break
+            streak += 1
+        return streak

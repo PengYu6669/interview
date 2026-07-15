@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -37,6 +38,8 @@ class CoachingAbilityItem(BaseModel):
     session_count: int = Field(ge=1)
     source_session_id: UUID
     latest_feedback: str = Field(min_length=1, max_length=500)
+    trend: int = Field(default=0, ge=-100, le=100)
+    mastery_status: Literal["practice", "improving", "stable"] = "practice"
 
 
 class CoachingProfileSummary(BaseModel):
@@ -45,6 +48,8 @@ class CoachingProfileSummary(BaseModel):
     skills: list[CoachingAbilityItem]
     next_mode: CoachingMode | None
     next_focus: str | None
+    current_streak_days: int = Field(default=0, ge=0)
+    next_difficulty: Literal["guided", "assisted", "pressure"] = "guided"
 
 
 class AbilityProfileData(BaseModel):

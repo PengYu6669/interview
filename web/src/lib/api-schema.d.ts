@@ -1016,6 +1016,17 @@ export interface components {
             source_session_id: string;
             /** Latest Feedback */
             latest_feedback: string;
+            /**
+             * Trend
+             * @default 0
+             */
+            trend: number;
+            /**
+             * Mastery Status
+             * @default practice
+             * @enum {string}
+             */
+            mastery_status: "practice" | "improving" | "stable";
         };
         /** CoachingAnswerRequest */
         CoachingAnswerRequest: {
@@ -1031,6 +1042,35 @@ export interface components {
              * @enum {string}
              */
             answer_mode: "text" | "voice";
+            /** Elapsed Seconds */
+            elapsed_seconds?: number | null;
+        };
+        /** CoachingAttemptComparison */
+        CoachingAttemptComparison: {
+            /** Items */
+            items: components["schemas"]["CoachingComparisonItem"][];
+            /** Overall Summary */
+            overall_summary: string;
+        };
+        /** CoachingComparisonItem */
+        CoachingComparisonItem: {
+            /** Dimension */
+            dimension: string;
+            /**
+             * Change
+             * @enum {string}
+             */
+            change: "improved" | "stable" | "regressed" | "insufficient";
+            /** Before Level */
+            before_level?: number | null;
+            /** After Level */
+            after_level?: number | null;
+            /** Before Quote */
+            before_quote?: string | null;
+            /** After Quote */
+            after_quote?: string | null;
+            /** Explanation */
+            explanation: string;
         };
         /** CoachingCreateRequest */
         CoachingCreateRequest: {
@@ -1053,6 +1093,14 @@ export interface components {
             training_goal: string;
             /** Source Ids */
             source_ids?: string[];
+            /** Exercise Type */
+            exercise_type?: ("star_story" | "prep_pitch" | "structure_puzzle" | "decision_simulation" | "fermi_estimation") | null;
+            /**
+             * Difficulty
+             * @default guided
+             * @enum {string}
+             */
+            difficulty: "guided" | "assisted" | "pressure";
         };
         /** CoachingDecision */
         CoachingDecision: {
@@ -1069,6 +1117,64 @@ export interface components {
             assessments: components["schemas"]["DimensionAssessment"][];
             /** Summary */
             summary: string;
+            /** Evidence Segments */
+            evidence_segments?: components["schemas"]["CoachingEvidenceSegment"][];
+            /** Priority Gaps */
+            priority_gaps?: components["schemas"]["CoachingPriorityGap"][];
+            comparison?: components["schemas"]["CoachingAttemptComparison"] | null;
+            next_practice?: components["schemas"]["CoachingNextPractice"] | null;
+            delivery_metrics?: components["schemas"]["CoachingDeliveryMetrics"] | null;
+        };
+        /** CoachingDeliveryMetrics */
+        CoachingDeliveryMetrics: {
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "voice_transcript" | "text";
+            /** Character Count */
+            character_count: number;
+            /** Characters Per Minute */
+            characters_per_minute?: number | null;
+            /** Filler Counts */
+            filler_counts?: {
+                [key: string]: number;
+            };
+            /** Filler Total */
+            filler_total: number;
+        };
+        /** CoachingEvidenceSegment */
+        CoachingEvidenceSegment: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** Evidence Quote */
+            evidence_quote: string;
+        };
+        /** CoachingNextPractice */
+        CoachingNextPractice: {
+            /** Focus */
+            focus: string;
+            /**
+             * Recommended Difficulty
+             * @enum {string}
+             */
+            recommended_difficulty: "guided" | "assisted" | "pressure";
+            /**
+             * Estimated Minutes
+             * @default 10
+             */
+            estimated_minutes: number;
+        };
+        /** CoachingPriorityGap */
+        CoachingPriorityGap: {
+            /** Dimension */
+            dimension: string;
+            /** Diagnosis */
+            diagnosis: string;
+            /** Retry Prompt */
+            retry_prompt: string;
         };
         /** CoachingProfileSummary */
         CoachingProfileSummary: {
@@ -1082,6 +1188,41 @@ export interface components {
             next_mode: ("structured_expression" | "business_sense") | null;
             /** Next Focus */
             next_focus: string | null;
+            /**
+             * Current Streak Days
+             * @default 0
+             */
+            current_streak_days: number;
+            /**
+             * Next Difficulty
+             * @default guided
+             * @enum {string}
+             */
+            next_difficulty: "guided" | "assisted" | "pressure";
+        };
+        /** CoachingScaffoldStep */
+        CoachingScaffoldStep: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** Prompt */
+            prompt: string;
+        };
+        /** CoachingScenarioFact */
+        CoachingScenarioFact: {
+            /** Label */
+            label: string;
+            /** Value */
+            value: string;
+            /**
+             * Source Type
+             * @default virtual
+             * @enum {string}
+             */
+            source_type: "virtual" | "curated";
+            /** Source Label */
+            source_label?: string | null;
         };
         /** CoachingSessionData */
         CoachingSessionData: {
@@ -1162,6 +1303,18 @@ export interface components {
             /** Turn Count */
             turn_count: number;
             /**
+             * Exercise Type
+             * @default star_story
+             * @enum {string}
+             */
+            exercise_type: "star_story" | "prep_pitch" | "structure_puzzle" | "decision_simulation" | "fermi_estimation";
+            /**
+             * Difficulty
+             * @default guided
+             * @enum {string}
+             */
+            difficulty: "guided" | "assisted" | "pressure";
+            /**
              * Updated At
              * Format: date-time
              */
@@ -1191,6 +1344,46 @@ export interface components {
             estimated_minutes: number;
             /** Dimensions */
             dimensions: string[];
+            /**
+             * Exercise Type
+             * @default star_story
+             * @enum {string}
+             */
+            exercise_type: "star_story" | "prep_pitch" | "structure_puzzle" | "decision_simulation" | "fermi_estimation";
+            /**
+             * Framework
+             * @default star
+             * @enum {string}
+             */
+            framework: "star" | "prep" | "business_decision" | "fermi";
+            /**
+             * Difficulty
+             * @default guided
+             * @enum {string}
+             */
+            difficulty: "guided" | "assisted" | "pressure";
+            /**
+             * Time Limit Seconds
+             * @default 180
+             */
+            time_limit_seconds: number;
+            /**
+             * Target Dimension
+             * @default conclusion
+             */
+            target_dimension: string;
+            /** Scaffold */
+            scaffold?: components["schemas"]["CoachingScaffoldStep"][];
+            puzzle?: components["schemas"]["StructurePuzzle"] | null;
+            /**
+             * Scenario Version
+             * @default generated-v1
+             */
+            scenario_version: string;
+            /** Facts */
+            facts?: components["schemas"]["CoachingScenarioFact"][];
+            /** Constraint Change */
+            constraint_change?: string | null;
         };
         /** CoachingTurnData */
         CoachingTurnData: {
@@ -1208,6 +1401,13 @@ export interface components {
              * @enum {string}
              */
             answer_mode: "text" | "voice";
+            /**
+             * Attempt Number
+             * @default 1
+             */
+            attempt_number: number;
+            /** Elapsed Seconds */
+            elapsed_seconds?: number | null;
             decision: components["schemas"]["CoachingDecision"];
             /**
              * Created At
@@ -2615,6 +2815,27 @@ export interface components {
              * Format: date-time
              */
             expires_at: string;
+        };
+        /** StructurePuzzle */
+        StructurePuzzle: {
+            /** Instruction */
+            instruction: string;
+            /** Fragments */
+            fragments: components["schemas"]["StructurePuzzleFragment"][];
+        };
+        /** StructurePuzzleFragment */
+        StructurePuzzleFragment: {
+            /** Id */
+            id: string;
+            /** Text */
+            text: string;
+            /** Target Key */
+            target_key: string;
+            /**
+             * Distractor
+             * @default false
+             */
+            distractor: boolean;
         };
         /** TTSRequest */
         TTSRequest: {

@@ -46,8 +46,9 @@ class CoachingTurnRecord(Base):
     sequence: Mapped[int] = mapped_column(Integer)
     answer: Mapped[str] = mapped_column(Text)
     answer_mode: Mapped[str] = mapped_column(String(20))
+    attempt_number: Mapped[int] = mapped_column(Integer, default=1)
+    elapsed_seconds: Mapped[int | None] = mapped_column(Integer, nullable=True)
     decision: Mapped[dict] = mapped_column(json_type)
     model: Mapped[str] = mapped_column(String(100))
     prompt_version: Mapped[str] = mapped_column(String(80))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
-

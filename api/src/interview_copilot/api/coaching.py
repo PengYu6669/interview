@@ -20,6 +20,8 @@ from interview_copilot.config import get_settings
 from interview_copilot.domain.auth import UserProfile
 from interview_copilot.domain.coaching import (
     CoachingChannel,
+    CoachingDifficulty,
+    CoachingExerciseType,
     CoachingMode,
     CoachingSessionData,
     CoachingSessionSummary,
@@ -52,12 +54,15 @@ class CoachingCreateRequest(BaseModel):
     target_role: str = Field(min_length=1, max_length=150)
     training_goal: str = Field(default="", max_length=500)
     source_ids: list[UUID] = Field(default_factory=list, max_length=30)
+    exercise_type: CoachingExerciseType | None = None
+    difficulty: CoachingDifficulty = "guided"
 
 
 class CoachingAnswerRequest(BaseModel):
     client_message_id: UUID
     answer: str = Field(min_length=1, max_length=20_000)
     answer_mode: CoachingChannel
+    elapsed_seconds: int | None = Field(default=None, ge=0, le=3_600)
 
 
 class CoachingSpeechTicketResponse(BaseModel):

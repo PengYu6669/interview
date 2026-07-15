@@ -1,6 +1,13 @@
 {
-  "version": "structured-expression-rubric-v1",
+  "version": "structured-expression-rubric-v2",
   "scale": {"min": 1, "max": 5},
+  "anchors": {
+    "1": "没有可定位的有效表达，或内容明显未回应问题",
+    "2": "出现相关信息但结构、责任或证据存在关键缺口",
+    "3": "核心意思可理解，仍有一项影响可信度或清晰度的缺口",
+    "4": "结构清楚且有具体证据，仅有轻微冗余或遗漏",
+    "5": "结论、证据与取舍紧密，表达精炼且可追问验证"
+  },
   "dimensions": [
     {"key": "conclusion", "label": "结论先行", "question": "是否先直接回答问题并给出核心判断"},
     {"key": "context", "label": "背景控制", "question": "背景是否足以理解问题且没有喧宾夺主"},

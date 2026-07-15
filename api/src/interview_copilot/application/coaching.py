@@ -6,9 +6,17 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from interview_copilot.application.agent.skills import ActivatedSkill
+from interview_copilot.application.coaching_protocol import (
+    normalize_task_plan,
+    resolve_exercise,
+    task_protocol,
+)
 from interview_copilot.domain.coaching import (
     CoachingChannel,
     CoachingDecision,
+    CoachingDeliveryMetrics,
+    CoachingDifficulty,
+    CoachingExerciseType,
     CoachingMode,
     CoachingSessionData,
     CoachingSessionSummary,
@@ -17,7 +25,7 @@ from interview_copilot.domain.coaching import (
 )
 from interview_copilot.infrastructure.coaching import CoachingSessionRecord, CoachingTurnRecord
 
-MAX_COACHING_TURNS = 5
+MAX_COACHING_ATTEMPTS = 2
 
 
 class TrainingCoach(Protocol):
@@ -61,8 +69,11 @@ class CoachingService:
         target_role: str,
         training_goal: str,
         source_ids: list[UUID],
+        exercise_type: CoachingExerciseType | None = None,
+        difficulty: CoachingDifficulty = "guided",
     ) -> CoachingSessionData:
         coach = self._required_coach()
+        selected_exercise = resolve_exercise(mode, exercise_type)
         session_id = uuid4()
         skill, task = await coach.plan(
             mode=mode,
@@ -72,10 +83,21 @@ class CoachingService:
                 "目标岗位": target_role,
                 "训练目标": training_goal,
                 "允许使用的资料编号": [str(item) for item in source_ids],
+                **task_protocol(
+                    mode=mode,
+                    exercise_type=selected_exercise,
+                    difficulty=difficulty,
+                ),
             },
             user_id=user_id,
             request_id=request_id,
             session_id=session_id,
+        )
+        task = normalize_task_plan(
+            task,
+            mode=mode,
+            exercise_type=selected_exercise,
+            difficulty=difficulty,
         )
         now = datetime.now(UTC)
         record = CoachingSessionRecord(
@@ -120,6 +142,7 @@ class CoachingService:
         client_message_id: UUID,
         answer: str,
         answer_mode: CoachingChannel,
+        elapsed_seconds: int | None = None,
     ) -> CoachingSessionData:
         duplicate = self._session.scalar(
             select(CoachingTurnRecord).where(
@@ -149,20 +172,38 @@ class CoachingService:
             )
             or 0
         ) + 1
-        history = self._turns(record.id)[-4:]
+        history = self._turns(record.id)
+        if sequence > MAX_COACHING_ATTEMPTS:
+            raise ValueError("本次双次作答训练已经完成")
+        first_turn = history[0] if history else None
         decision = await self._required_coach().evaluate(
             mode=record.mode,  # type: ignore[arg-type]
             user_data={
                 "训练任务": record.task,
                 "当前问题": record.current_question,
                 "用户回答": answer,
-                "最近训练记录": [item.decision for item in history],
+                "本次作答序号": sequence,
+                "第一次回答": first_turn.answer if first_turn else None,
+                "第一次评价": first_turn.decision if first_turn else None,
+                "新增约束": (
+                    record.task.get("constraint_change") if sequence == 2 else None
+                ),
             },
             user_id=user_id,
             request_id=client_message_id,
-            final_turn=sequence >= MAX_COACHING_TURNS,
+            final_turn=sequence >= MAX_COACHING_ATTEMPTS,
             session_id=session_id,
         )
+        decision = decision.model_copy(
+            update={
+                "delivery_metrics": self._delivery_metrics(
+                    answer=answer,
+                    answer_mode=answer_mode,
+                    elapsed_seconds=elapsed_seconds,
+                )
+            }
+        )
+        self._validate_protocol_decision(decision, attempt_number=sequence)
         now = datetime.now(UTC)
         self._session.add(
             CoachingTurnRecord(
@@ -171,13 +212,23 @@ class CoachingService:
                 sequence=sequence,
                 answer=answer,
                 answer_mode=answer_mode,
+                attempt_number=sequence,
+                elapsed_seconds=elapsed_seconds,
                 decision=decision.model_dump(mode="json"),
                 model=self._required_coach().model_name,
                 prompt_version=self._required_coach().prompt_version,
                 created_at=now,
             )
         )
-        record.current_question = decision.next_question
+        if sequence == 1:
+            task = CoachingTaskPlan.model_validate(record.task)
+            retry_focus = "；".join(item.retry_prompt for item in decision.priority_gaps)
+            retry_parts = [task.primary_question, f"重答要求：{retry_focus}"]
+            if task.constraint_change:
+                retry_parts.append(task.constraint_change)
+            record.current_question = "\n\n".join(retry_parts)
+        else:
+            record.current_question = decision.next_question
         record.updated_at = now
         if decision.action == "complete":
             record.status = "completed"
@@ -204,10 +255,12 @@ class CoachingService:
                 mode=record.mode,  # type: ignore[arg-type]
                 channel=record.channel,  # type: ignore[arg-type]
                 status=record.status,  # type: ignore[arg-type]
-                title=CoachingTaskPlan.model_validate(record.task).title,
+                title=(task := CoachingTaskPlan.model_validate(record.task)).title,
                 target_role=record.target_role,
                 current_question=record.current_question,
                 turn_count=len(self._turns(record.id)),
+                exercise_type=task.exercise_type,
+                difficulty=task.difficulty,
                 updated_at=record.updated_at,
             )
             for record in records
@@ -251,6 +304,8 @@ class CoachingService:
                     sequence=turn.sequence,
                     answer=turn.answer,
                     answer_mode=turn.answer_mode,  # type: ignore[arg-type]
+                    attempt_number=turn.attempt_number,
+                    elapsed_seconds=turn.elapsed_seconds,
                     decision=CoachingDecision.model_validate(turn.decision),
                     created_at=turn.created_at,
                 )
@@ -265,3 +320,39 @@ class CoachingService:
         if not self._coach:
             raise RuntimeError("训练教练 Agent 尚未配置")
         return self._coach
+
+    @staticmethod
+    def _validate_protocol_decision(
+        decision: CoachingDecision, *, attempt_number: int
+    ) -> None:
+        if attempt_number == 1:
+            if decision.action != "retry" or not decision.next_question:
+                raise ValueError("首次作答后必须保留原题进行重答")
+            if decision.comparison is not None or decision.next_practice is not None:
+                raise ValueError("首次作答不能提前生成训练结论")
+            if not decision.priority_gaps:
+                raise ValueError("首次作答必须指出一至两个优先缺口")
+            return
+        if decision.action != "complete" or decision.next_question is not None:
+            raise ValueError("第二次作答后必须完成训练")
+        if decision.comparison is None or decision.next_practice is None:
+            raise ValueError("第二次作答必须返回前后对比和下一练建议")
+
+    @staticmethod
+    def _delivery_metrics(
+        *, answer: str, answer_mode: CoachingChannel, elapsed_seconds: int | None
+    ) -> CoachingDeliveryMetrics:
+        fillers = ("嗯", "呃", "那个", "然后", "就是")
+        counts = {item: answer.count(item) for item in fillers if item in answer}
+        speed = (
+            round(len(answer) * 60 / elapsed_seconds)
+            if elapsed_seconds and elapsed_seconds > 0
+            else None
+        )
+        return CoachingDeliveryMetrics(
+            source="voice_transcript" if answer_mode == "voice" else "text",
+            character_count=len(answer),
+            characters_per_minute=speed,
+            filler_counts=counts,
+            filler_total=sum(counts.values()),
+        )
