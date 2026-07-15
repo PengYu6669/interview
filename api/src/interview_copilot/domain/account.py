@@ -62,6 +62,7 @@ class ExportInterviewReport(BaseModel):
     verification_error: str | None
     verified_claims: list[dict[str, Any]]
     board_snapshot: dict[str, Any] | None
+    coding_evidence: list[dict[str, Any]]
     model: str
     prompt_version: str
     rubric_version: str
@@ -110,6 +111,8 @@ class ExportInterviewSession(BaseModel):
     started_at: datetime | None
     completed_at: datetime | None
     turns: list[ExportInterviewTurn]
+    coding_snapshots: list[dict[str, Any]]
+    coding_runs: list[dict[str, Any]]
     report: ExportInterviewReport | None
 
 

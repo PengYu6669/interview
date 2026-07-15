@@ -5,6 +5,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from .board import BoardState
+from .coding import CodingProblemSpec, CodingReportEvidence
 from .training import InterviewRound, InterviewType, TargetLevel
 
 InterviewPhaseKind = Literal[
@@ -12,6 +13,7 @@ InterviewPhaseKind = Literal[
     "project",
     "technical",
     "system_design",
+    "coding",
     "behavioral",
     "candidate_qa",
 ]
@@ -30,6 +32,7 @@ class InterviewQuestionPlan(BaseModel):
     intent: str = Field(min_length=1, max_length=1_000)
     skills: list[str] = Field(min_length=1, max_length=8)
     follow_up_directions: list[str] = Field(default_factory=list, max_length=5)
+    coding_spec: CodingProblemSpec | None = None
 
 
 class InterviewPhasePlan(BaseModel):
@@ -40,6 +43,16 @@ class InterviewPhasePlan(BaseModel):
     minutes: int = Field(ge=1, le=120)
     skills: list[str] = Field(min_length=1, max_length=12)
     questions: list[InterviewQuestionPlan] = Field(min_length=1, max_length=8)
+
+    @model_validator(mode="after")
+    def validate_coding_spec(self) -> "InterviewPhasePlan":
+        missing_spec = any(question.coding_spec is None for question in self.questions)
+        unexpected_spec = any(question.coding_spec is not None for question in self.questions)
+        if self.kind == "coding" and missing_spec:
+            raise ValueError("Coding 阶段的每道题都必须提供 coding_spec")
+        if self.kind != "coding" and unexpected_spec:
+            raise ValueError("只有 Coding 阶段可以提供 coding_spec")
+        return self
 
 
 class InterviewPlan(BaseModel):
@@ -350,6 +363,7 @@ class InterviewReportData(BaseModel):
     turn_count: int
     turns: list[InterviewReportTurn]
     board_snapshot: InterviewReportBoardSnapshot | None = None
+    coding_evidence: list[CodingReportEvidence] = Field(default_factory=list)
     content: InterviewReportContent
     reviews: list[InterviewReportReviewData]
     verification_status: ReportVerificationStatus

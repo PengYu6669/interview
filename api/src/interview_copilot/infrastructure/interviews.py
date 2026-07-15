@@ -108,6 +108,7 @@ class InterviewReportRecord(Base):
     verification_error: Mapped[str | None] = mapped_column(String(500), nullable=True)
     verified_claims: Mapped[list[dict]] = mapped_column(json_type, default=list)
     board_snapshot: Mapped[dict | None] = mapped_column(json_type, nullable=True)
+    coding_evidence: Mapped[list[dict]] = mapped_column(json_type, default=list)
     model: Mapped[str] = mapped_column(String(100))
     prompt_version: Mapped[str] = mapped_column(String(50))
     rubric_version: Mapped[str] = mapped_column(String(50))

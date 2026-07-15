@@ -211,6 +211,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/interview-sessions/{session_id}/coding": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Coding Workspace */
+        get: operations["get_coding_workspace_v1_interview_sessions__session_id__coding_get"];
+        put?: never;
+        /** Save Coding Workspace */
+        post: operations["save_coding_workspace_v1_interview_sessions__session_id__coding_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/interview-sessions/{session_id}/coding/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Run Coding Workspace */
+        post: operations["run_coding_workspace_v1_interview_sessions__session_id__coding_runs_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/drafts": {
         parameters: {
             query?: never;
@@ -520,6 +555,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/questions/review-due": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Review Due */
+        get: operations["list_review_due_v1_questions_review_due_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/questions/import": {
         parameters: {
             query?: never;
@@ -616,6 +668,23 @@ export interface paths {
         };
         /** Health */
         get: operations["health_health_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ready": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Readiness */
+        get: operations["readiness_ready_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1146,6 +1215,199 @@ export interface components {
              */
             created_at: string;
         };
+        /** CodingProblemSpec */
+        CodingProblemSpec: {
+            /** Title */
+            title: string;
+            /** Description */
+            description: string;
+            /**
+             * Language
+             * @default python
+             * @constant
+             */
+            language: "python";
+            /**
+             * Entrypoint
+             * @default solve
+             * @constant
+             */
+            entrypoint: "solve";
+            /** Starter Code */
+            starter_code: string;
+            /** Constraints */
+            constraints?: string[];
+            /** Public Tests */
+            public_tests: components["schemas"]["CodingTestCase"][];
+        };
+        /** CodingReportEvidence */
+        CodingReportEvidence: {
+            /** Phase Index */
+            phase_index: number;
+            /** Question Index */
+            question_index: number;
+            problem: components["schemas"]["CodingProblemSpec"];
+            /** Latest Source */
+            latest_source: string;
+            /** Complexity Notes */
+            complexity_notes: string;
+            /** Snapshot Count */
+            snapshot_count: number;
+            /** Runs */
+            runs?: components["schemas"]["CodingReportRunSummary"][];
+        };
+        /** CodingReportRunSummary */
+        CodingReportRunSummary: {
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "passed" | "failed" | "compile_error" | "runtime_error" | "timed_out" | "output_limit" | "memory_limit";
+            /** Snapshot Revision */
+            snapshot_revision: number;
+            /** Passed Count */
+            passed_count: number;
+            /** Total Count */
+            total_count: number;
+            /** Duration Ms */
+            duration_ms: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
+        /** CodingRunData */
+        CodingRunData: {
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "passed" | "failed" | "compile_error" | "runtime_error" | "timed_out" | "output_limit" | "memory_limit";
+            /** Tests */
+            tests?: components["schemas"]["CodingTestResult"][];
+            /** Duration Ms */
+            duration_ms: number;
+            /** Error */
+            error?: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Session Id
+             * Format: uuid
+             */
+            session_id: string;
+            /**
+             * Snapshot Id
+             * Format: uuid
+             */
+            snapshot_id: string;
+            /**
+             * Client Request Id
+             * Format: uuid
+             */
+            client_request_id: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
+        /** CodingRunRequest */
+        CodingRunRequest: {
+            /**
+             * Client Request Id
+             * Format: uuid
+             */
+            client_request_id: string;
+            /** Snapshot Revision */
+            snapshot_revision: number;
+        };
+        /** CodingSnapshotData */
+        CodingSnapshotData: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Session Id
+             * Format: uuid
+             */
+            session_id: string;
+            /** Phase Index */
+            phase_index: number;
+            /** Question Index */
+            question_index: number;
+            /** Revision */
+            revision: number;
+            /**
+             * Client Snapshot Id
+             * Format: uuid
+             */
+            client_snapshot_id: string;
+            /** Source */
+            source: string;
+            /** Complexity Notes */
+            complexity_notes: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
+        /** CodingSnapshotRequest */
+        CodingSnapshotRequest: {
+            /**
+             * Client Snapshot Id
+             * Format: uuid
+             */
+            client_snapshot_id: string;
+            /** Base Revision */
+            base_revision: number;
+            /** Source */
+            source: string;
+            /**
+             * Complexity Notes
+             * @default
+             */
+            complexity_notes: string;
+        };
+        /** CodingTestCase */
+        CodingTestCase: {
+            /** Name */
+            name: string;
+            /** Arguments */
+            arguments?: components["schemas"]["JsonValue"][];
+            expected: components["schemas"]["JsonValue"];
+        };
+        /** CodingTestResult */
+        CodingTestResult: {
+            /** Name */
+            name: string;
+            /** Passed */
+            passed: boolean;
+            expected: components["schemas"]["JsonValue"];
+            /** Actual */
+            actual?: components["schemas"]["JsonValue"] | string | null;
+            /** Error */
+            error?: string | null;
+            /**
+             * Stdout
+             * @default
+             */
+            stdout: string;
+            /** Duration Ms */
+            duration_ms: number;
+        };
+        /** CodingWorkspaceData */
+        CodingWorkspaceData: {
+            problem: components["schemas"]["CodingProblemSpec"];
+            snapshot: components["schemas"]["CodingSnapshotData"] | null;
+        };
         /** DeleteAccountRequest */
         DeleteAccountRequest: {
             /** Current Password */
@@ -1207,7 +1469,7 @@ export interface components {
              * @default comprehensive
              * @enum {string}
              */
-            interview_type: "comprehensive" | "project" | "technical" | "system_design" | "behavioral" | "weak_area";
+            interview_type: "comprehensive" | "project" | "technical" | "system_design" | "coding" | "behavioral" | "weak_area";
             /** Mode */
             mode: string;
             /** Duration Minutes */
@@ -1243,7 +1505,7 @@ export interface components {
             /** Interview Round */
             interview_round?: ("first" | "second" | "final" | "manager") | null;
             /** Interview Type */
-            interview_type?: ("comprehensive" | "project" | "technical" | "system_design" | "behavioral" | "weak_area") | null;
+            interview_type?: ("comprehensive" | "project" | "technical" | "system_design" | "coding" | "behavioral" | "weak_area") | null;
             /** Mode */
             mode?: string | null;
             /** Duration Minutes */
@@ -1355,6 +1617,10 @@ export interface components {
             board_snapshot: {
                 [key: string]: unknown;
             } | null;
+            /** Coding Evidence */
+            coding_evidence: {
+                [key: string]: unknown;
+            }[];
             /** Model */
             model: string;
             /** Prompt Version */
@@ -1465,6 +1731,14 @@ export interface components {
             completed_at: string | null;
             /** Turns */
             turns: components["schemas"]["ExportInterviewTurn"][];
+            /** Coding Snapshots */
+            coding_snapshots: {
+                [key: string]: unknown;
+            }[];
+            /** Coding Runs */
+            coding_runs: {
+                [key: string]: unknown;
+            }[];
             report: components["schemas"]["ExportInterviewReport"] | null;
         };
         /** ExportInterviewTurn */
@@ -1647,7 +1921,7 @@ export interface components {
              * Interview Type
              * @enum {string}
              */
-            interview_type: "comprehensive" | "project" | "technical" | "system_design" | "behavioral" | "weak_area";
+            interview_type: "comprehensive" | "project" | "technical" | "system_design" | "coding" | "behavioral" | "weak_area";
             /** Mode */
             mode: string;
             /** Duration Minutes */
@@ -1702,7 +1976,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "warmup" | "project" | "technical" | "system_design" | "behavioral" | "candidate_qa";
+            kind: "warmup" | "project" | "technical" | "system_design" | "coding" | "behavioral" | "candidate_qa";
             /** Minutes */
             minutes: number;
             /** Skills */
@@ -1765,7 +2039,7 @@ export interface components {
              * Interview Type
              * @enum {string}
              */
-            interview_type: "comprehensive" | "project" | "technical" | "system_design" | "behavioral" | "weak_area";
+            interview_type: "comprehensive" | "project" | "technical" | "system_design" | "coding" | "behavioral" | "weak_area";
             /** Mode */
             mode: string;
             /** Pressure Level */
@@ -1783,6 +2057,8 @@ export interface components {
             /** Turns */
             turns: components["schemas"]["InterviewReportTurn"][];
             board_snapshot?: components["schemas"]["InterviewReportBoardSnapshot"] | null;
+            /** Coding Evidence */
+            coding_evidence?: components["schemas"]["CodingReportEvidence"][];
             content: components["schemas"]["InterviewReportContent"];
             /** Reviews */
             reviews: components["schemas"]["InterviewReportReviewData"][];
@@ -1967,7 +2243,7 @@ export interface components {
              * Interview Type
              * @enum {string}
              */
-            interview_type: "comprehensive" | "project" | "technical" | "system_design" | "behavioral" | "weak_area";
+            interview_type: "comprehensive" | "project" | "technical" | "system_design" | "coding" | "behavioral" | "weak_area";
             /** Mode */
             mode: string;
             /** Duration Minutes */
@@ -2057,7 +2333,7 @@ export interface components {
              * Interview Type
              * @enum {string}
              */
-            interview_type: "comprehensive" | "project" | "technical" | "system_design" | "behavioral" | "weak_area";
+            interview_type: "comprehensive" | "project" | "technical" | "system_design" | "coding" | "behavioral" | "weak_area";
             /** Mode */
             mode: string;
             /** Duration Minutes */
@@ -2098,6 +2374,7 @@ export interface components {
             /** Evidence Turns */
             evidence_turns: number[];
         };
+        JsonValue: unknown;
         /** LoginRequest */
         LoginRequest: {
             /** Identifier */
@@ -2393,7 +2670,7 @@ export interface components {
              * @default comprehensive
              * @enum {string}
              */
-            interview_type: "comprehensive" | "project" | "technical" | "system_design" | "behavioral" | "weak_area";
+            interview_type: "comprehensive" | "project" | "technical" | "system_design" | "coding" | "behavioral" | "weak_area";
             /** Mode */
             mode: string;
             /** Duration Minutes */
@@ -3050,6 +3327,113 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CoachingSpeechTicketResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_coding_workspace_v1_interview_sessions__session_id__coding_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CodingWorkspaceData"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    save_coding_workspace_v1_interview_sessions__session_id__coding_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CodingSnapshotRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CodingWorkspaceData"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    run_coding_workspace_v1_interview_sessions__session_id__coding_runs_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CodingRunRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CodingRunData"];
                 };
             };
             /** @description Validation Error */
@@ -3767,6 +4151,37 @@ export interface operations {
             };
         };
     };
+    list_review_due_v1_questions_review_due_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuestionSummary"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     import_questions_v1_questions_import_post: {
         parameters: {
             query?: never;
@@ -4011,6 +4426,28 @@ export interface operations {
         };
     };
     health_health_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: string;
+                    };
+                };
+            };
+        };
+    };
+    readiness_ready_get: {
         parameters: {
             query?: never;
             header?: never;

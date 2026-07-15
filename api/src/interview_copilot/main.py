@@ -15,6 +15,7 @@ from .api.auth import require_current_user
 from .api.auth import router as auth_router
 from .api.boards import router as boards_router
 from .api.coaching import router as coaching_router
+from .api.coding import router as coding_router
 from .api.drafts import router as drafts_router
 from .api.interviews import router as interviews_router
 from .api.profile import router as profile_router
@@ -47,6 +48,7 @@ app = FastAPI(title=settings.app_name, version="0.1.0")
 app.include_router(auth_router)
 app.include_router(boards_router)
 app.include_router(coaching_router)
+app.include_router(coding_router)
 app.include_router(drafts_router)
 app.include_router(reports_router)
 app.include_router(interviews_router)

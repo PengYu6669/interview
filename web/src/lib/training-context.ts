@@ -29,6 +29,7 @@ export const INTERVIEW_TYPE_OPTIONS: Array<{
   { value: "project", label: "项目深挖", description: "聚焦职责、指标与技术取舍" },
   { value: "technical", label: "技术专项", description: "围绕岗位核心技术追问" },
   { value: "system_design", label: "系统设计", description: "训练估算、架构与故障治理" },
+  { value: "coding", label: "手撕算法", description: "在模拟面试中完成 Python 算法题" },
   { value: "behavioral", label: "行为面试", description: "训练协作、冲突与推动能力" },
   { value: "weak_area", label: "弱项复训", description: "围绕历史改进项重新验证" },
 ];

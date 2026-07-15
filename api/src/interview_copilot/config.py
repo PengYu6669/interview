@@ -45,6 +45,18 @@ class Settings(BaseSettings):
     iflytek_iat_endpoint: str = "wss://iat-api.xfyun.cn/v2/iat"
     speech_ticket_secret: str = ""
 
+    coding_sandbox_enabled: bool = True
+    coding_sandbox_image: str = (
+        "python:3.12.11-alpine3.22@sha256:"
+        "efcdfa6a6b2fd2afb9c7dfa9a5b288a6f68338b5cfdebe6b637d986067d85757"
+    )
+    coding_sandbox_timeout_seconds: float = Field(default=3.0, ge=1.0, le=10.0)
+    coding_sandbox_memory_mb: int = Field(default=128, ge=64, le=256)
+    coding_sandbox_cpu_count: float = Field(default=0.5, ge=0.25, le=1.0)
+    coding_sandbox_pids_limit: int = Field(default=64, ge=16, le=128)
+    coding_sandbox_output_limit_bytes: int = Field(default=65_536, ge=8_192, le=131_072)
+    coding_sandbox_max_concurrency: int = Field(default=2, ge=1, le=4)
+
 
 @lru_cache
 def get_settings() -> Settings:

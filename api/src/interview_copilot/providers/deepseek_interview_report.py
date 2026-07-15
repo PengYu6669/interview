@@ -4,6 +4,7 @@ import httpx
 from pydantic import ValidationError
 
 from interview_copilot.application.interview_reports import InterviewReportError
+from interview_copilot.domain.coding import CodingReportEvidence
 from interview_copilot.domain.interviews import (
     InterviewPlan,
     InterviewReportContent,
@@ -35,6 +36,7 @@ class DeepSeekInterviewReportGenerator:
         verification_status: str,
         verified_claims: list[VerifiedClaim],
         board_snapshot: dict[str, object] | None,
+        coding_evidence: list[CodingReportEvidence],
     ) -> InterviewReportContent:
         schema = InterviewReportContent.model_json_schema()
         data = {
@@ -45,6 +47,7 @@ class DeepSeekInterviewReportGenerator:
             "事实核验状态": verification_status,
             "事实核验结果": [item.model_dump(mode="json") for item in verified_claims],
             "系统设计白板": board_snapshot,
+            "Coding 证据": [item.model_dump(mode="json") for item in coding_evidence],
         }
         prompt = f"""你是技术面试复盘分析器。只根据实际回答证据生成报告。
 
@@ -59,6 +62,8 @@ class DeepSeekInterviewReportGenerator:
 5. overall_score 只表示本次已覆盖回答的表现，不代表候选人的完整能力。
 6. improvement 必须具体说明下一次如何组织或补充回答；优势的 improvement 使用 null。
 7. 使用中文，严格返回符合 JSON Schema 的 JSON，不要 Markdown。
+8. Coding 评价必须同时参考最终代码、版本数量、测试通过情况和复杂度说明；测试未通过时可以
+   指出失败样例，但不得仅凭代码风格推断候选人完整算法能力。
 
 评分标准版本：{RUBRIC_VERSION}
 JSON Schema：{json.dumps(schema, ensure_ascii=False)}

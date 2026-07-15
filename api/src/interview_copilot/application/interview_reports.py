@@ -8,6 +8,11 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, object_session
 
 from interview_copilot.application.claim_verification import ClaimVerificationError
+from interview_copilot.domain.coding import (
+    CodingReportEvidence,
+    CodingReportRunSummary,
+    CodingRunStatus,
+)
 from interview_copilot.domain.interviews import (
     InterviewHistoryItem,
     InterviewPlan,
@@ -25,6 +30,10 @@ from interview_copilot.domain.interviews import (
 )
 from interview_copilot.domain.training import TrainingContext
 from interview_copilot.infrastructure.boards import InterviewBoardSnapshotRecord
+from interview_copilot.infrastructure.coding import (
+    InterviewCodingRunRecord,
+    InterviewCodingSnapshotRecord,
+)
 from interview_copilot.infrastructure.interviews import (
     InterviewReportRecord,
     InterviewReportReviewRecord,
@@ -67,6 +76,7 @@ class InterviewReportGenerator(Protocol):
         verification_status: str,
         verified_claims: list[VerifiedClaim],
         board_snapshot: dict[str, object] | None,
+        coding_evidence: list[CodingReportEvidence],
     ) -> InterviewReportContent: ...
 
 
@@ -384,6 +394,8 @@ class InterviewReportService:
             if board_record
             else None
         )
+        plan = InterviewPlan.model_validate(session.plan)
+        coding_evidence = self._coding_evidence(session=session, plan=plan)
         verification_status = "not_run"
         verification_error: str | None = None
         verified_claims: list[VerifiedClaim] = []
@@ -401,11 +413,12 @@ class InterviewReportService:
             content = await self._generator.generate(
                 target_role=session.target_role,
                 session_status=session.status,
-                plan=InterviewPlan.model_validate(session.plan),
+                plan=plan,
                 turns=turn_data,
                 verification_status=verification_status,
                 verified_claims=verified_claims,
                 board_snapshot=board_snapshot,
+                coding_evidence=coding_evidence,
             )
             self._validate_evidence(content, turns)
         except InterviewReportError as exc:
@@ -444,6 +457,7 @@ class InterviewReportService:
                 if board_record
                 else None
             ),
+            coding_evidence=[item.model_dump(mode="json") for item in coding_evidence],
             model=self._generator.model_name,
             prompt_version=self._generator.prompt_version,
             rubric_version=self._generator.rubric_version,
@@ -651,6 +665,9 @@ class InterviewReportService:
                 if record.board_snapshot
                 else None
             ),
+            coding_evidence=[
+                CodingReportEvidence.model_validate(item) for item in record.coding_evidence
+            ],
             content=InterviewReportContent.model_validate(record.content),
             reviews=[self._to_review_domain(item) for item in review_records],
             verification_status=cast(ReportVerificationStatus, record.verification_status),
@@ -661,6 +678,82 @@ class InterviewReportService:
             rubric_version=record.rubric_version,
             created_at=record.created_at,
         )
+
+    def _coding_evidence(
+        self, *, session: InterviewSessionRecord, plan: InterviewPlan
+    ) -> list[CodingReportEvidence]:
+        snapshots = list(
+            self._session.scalars(
+                select(InterviewCodingSnapshotRecord)
+                .where(
+                    InterviewCodingSnapshotRecord.session_id == session.id,
+                    InterviewCodingSnapshotRecord.user_id == session.user_id,
+                )
+                .order_by(
+                    InterviewCodingSnapshotRecord.phase_index,
+                    InterviewCodingSnapshotRecord.question_index,
+                    InterviewCodingSnapshotRecord.revision,
+                )
+            ).all()
+        )
+        if not snapshots:
+            return []
+        runs = list(
+            self._session.scalars(
+                select(InterviewCodingRunRecord)
+                .where(
+                    InterviewCodingRunRecord.session_id == session.id,
+                    InterviewCodingRunRecord.user_id == session.user_id,
+                )
+                .order_by(InterviewCodingRunRecord.created_at)
+            ).all()
+        )
+        snapshot_by_id = {item.id: item for item in snapshots}
+        grouped: dict[tuple[int, int], list[InterviewCodingSnapshotRecord]] = {}
+        for snapshot in snapshots:
+            grouped.setdefault((snapshot.phase_index, snapshot.question_index), []).append(
+                snapshot
+            )
+        evidence: list[CodingReportEvidence] = []
+        for (phase_index, question_index), versions in grouped.items():
+            try:
+                problem = plan.phases[phase_index].questions[question_index].coding_spec
+            except IndexError:
+                continue
+            if problem is None:
+                continue
+            related_runs = []
+            for run in runs:
+                source_snapshot = snapshot_by_id.get(run.snapshot_id)
+                if not source_snapshot or (
+                    source_snapshot.phase_index,
+                    source_snapshot.question_index,
+                ) != (phase_index, question_index):
+                    continue
+                passed_count = sum(1 for item in run.tests if item.get("passed") is True)
+                related_runs.append(
+                    CodingReportRunSummary(
+                        status=cast(CodingRunStatus, run.status),
+                        snapshot_revision=source_snapshot.revision,
+                        passed_count=passed_count,
+                        total_count=len(run.tests),
+                        duration_ms=run.duration_ms,
+                        created_at=run.created_at,
+                    )
+                )
+            latest = versions[-1]
+            evidence.append(
+                CodingReportEvidence(
+                    phase_index=phase_index,
+                    question_index=question_index,
+                    problem=problem,
+                    latest_source=latest.source,
+                    complexity_notes=latest.complexity_notes,
+                    snapshot_count=len(versions),
+                    runs=related_runs,
+                )
+            )
+        return evidence
 
     @staticmethod
     def _to_review_domain(record: InterviewReportReviewRecord) -> InterviewReportReviewData:

@@ -12,6 +12,7 @@ from interview_copilot.application.interview_reports import (
     InterviewReportReviewError,
     InterviewReportService,
 )
+from interview_copilot.domain.coding import CodingProblemSpec, CodingTestCase
 from interview_copilot.domain.interviews import (
     InterviewPhasePlan,
     InterviewPlan,
@@ -23,6 +24,10 @@ from interview_copilot.domain.interviews import (
     InterviewSkillScore,
 )
 from interview_copilot.infrastructure.boards import InterviewBoardSnapshotRecord
+from interview_copilot.infrastructure.coding import (
+    InterviewCodingRunRecord,
+    InterviewCodingSnapshotRecord,
+)
 from interview_copilot.infrastructure.database import Base, UserRecord
 from interview_copilot.infrastructure.drafts import TrainingDraftRecord  # noqa: F401
 from interview_copilot.infrastructure.interviews import (
@@ -151,15 +156,46 @@ async def test_history_and_idempotent_evidence_report() -> None:
 
 
 @pytest.mark.asyncio
-async def test_report_persists_and_exposes_latest_board_snapshot() -> None:
+async def test_report_persists_board_and_coding_evidence() -> None:
     engine = create_engine("sqlite+pysqlite:///:memory:")
     Base.metadata.create_all(engine)
     with Session(engine, expire_on_commit=False) as session:
         user = _user(session, "report-board-owner")
         interview = _interview(session, user.id, status="ended")
         _turn(session, interview.id)
+        plan = InterviewPlan.model_validate(interview.plan)
+        problem = CodingProblemSpec(
+            title="两数之和",
+            description="返回目标下标。",
+            starter_code="def solve(nums, target):\n    pass\n",
+            public_tests=[
+                CodingTestCase(name="样例", arguments=[[2, 7], 9], expected=[0, 1])
+            ],
+        )
+        coding_question = plan.phases[0].questions[0].model_copy(
+            update={"coding_spec": problem}
+        )
+        coding_phase = plan.phases[0].model_copy(
+            update={"kind": "coding", "questions": [coding_question]}
+        )
+        interview.plan = plan.model_copy(
+            update={"phases": [coding_phase, plan.phases[1]]}
+        ).model_dump(mode="json")
         node_id = uuid4()
-        session.add(
+        coding_snapshot = InterviewCodingSnapshotRecord(
+            session_id=interview.id,
+            user_id=user.id,
+            phase_index=0,
+            question_index=0,
+            revision=0,
+            client_snapshot_id=uuid4(),
+            source="def solve(nums, target):\n    return [0, 1]\n",
+            complexity_notes="时间 O(n)，空间 O(n)。",
+            created_at=datetime.now(UTC),
+        )
+        session.add(coding_snapshot)
+        session.flush()
+        session.add_all([
             InterviewBoardSnapshotRecord(
                 session_id=interview.id,
                 user_id=user.id,
@@ -181,8 +217,19 @@ async def test_report_persists_and_exposes_latest_board_snapshot() -> None:
                     "annotations": [],
                 },
                 created_at=datetime.now(UTC),
-            )
-        )
+            ),
+            InterviewCodingRunRecord(
+                session_id=interview.id,
+                user_id=user.id,
+                snapshot_id=coding_snapshot.id,
+                client_request_id=uuid4(),
+                status="passed",
+                tests=[{"name": "样例", "passed": True}],
+                duration_ms=18,
+                error=None,
+                created_at=datetime.now(UTC),
+            ),
+        ])
         session.commit()
 
         generator = FakeReportGenerator()
@@ -195,6 +242,10 @@ async def test_report_persists_and_exposes_latest_board_snapshot() -> None:
         assert report.board_snapshot.revision == 0
         assert report.board_snapshot.state.nodes[0].label == "鉴权服务"
         assert generator.last_request["board_snapshot"] is not None
+        assert len(report.coding_evidence) == 1
+        assert report.coding_evidence[0].snapshot_count == 1
+        assert report.coding_evidence[0].runs[0].passed_count == 1
+        assert generator.last_request["coding_evidence"][0].latest_source.startswith("def solve")
 
 
 @pytest.mark.asyncio

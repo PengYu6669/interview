@@ -10,6 +10,7 @@ import {
   Check,
   CheckCircle2,
   Clock3,
+  Code2,
   FileWarning,
   ExternalLink,
   Gauge,
@@ -306,6 +307,7 @@ export function InterviewReport({ sessionId }: { sessionId: string }) {
     </section>
 
     {report.board_snapshot && <ReportBoardPlayback snapshot={report.board_snapshot} />}
+    {(report.coding_evidence ?? []).length > 0 && <ReportCodingEvidence evidence={report.coding_evidence ?? []} />}
 
     {(report.verification_status === "degraded" || report.verified_claims.length > 0) && <section className="report-verification-section"><div className="section-title"><div><h2>技术主张核验</h2><p>只使用已审核知识包，证据不足不会被定性为错误</p></div><StatusBadge tone={report.verification_status === "degraded" ? "warning" : "success"}>{report.verification_status === "degraded" ? "核验降级" : `${report.verified_claims.length} 条`}</StatusBadge></div>{report.verification_status === "degraded" ? <div className="verification-degraded"><AlertTriangle size={17} /><p><strong>本次事实核验未完成</strong>{report.verification_error || "权威知识检索暂时不可用，报告没有据此判断技术错误。"}</p></div> : <div className="verification-list">{report.verified_claims.map((claim, index) => <VerifiedClaimItem key={`${claim.sequence}-${index}`} claim={claim} />)}</div>}</section>}
 
@@ -322,6 +324,22 @@ function ReportBoardPlayback({ snapshot }: { snapshot: NonNullable<InterviewRepo
   const edgeList = snapshot.state.edges ?? [];
   const nodes = new Map(nodeList.map((node) => [node.id, node]));
   return <section className="report-board-section"><div className="section-title"><div><h2>系统设计白板回放</h2><p>报告生成时保存的最后一个结构化快照 · 第 {snapshot.revision + 1} 版</p></div><StatusBadge>只读</StatusBadge></div><div className="report-board-canvas"><svg aria-hidden="true">{edgeList.map((edge) => { const source = nodes.get(edge.source_id); const target = nodes.get(edge.target_id); if (!source || !target) return null; return <line key={edge.id} x1={source.x + source.width / 2} y1={source.y + source.height / 2} x2={target.x + target.width / 2} y2={target.y + target.height / 2} />; })}</svg>{nodeList.map((node) => <article key={node.id} style={{ left: node.x, top: node.y, width: node.width, minHeight: node.height }}><small>{node.kind}</small><strong>{node.label}</strong></article>)}</div></section>;
+}
+
+function ReportCodingEvidence({ evidence }: { evidence: NonNullable<InterviewReportData["coding_evidence"]> }) {
+  return <section className="report-coding-section">
+    <div className="section-title"><div><h2>Coding 过程回放</h2><p>报告生成时保存的代码、运行记录与复杂度说明</p></div><StatusBadge>{evidence.length} 道</StatusBadge></div>
+    <div className="report-coding-list">{evidence.map((item) => {
+      const runs = item.runs ?? [];
+      const latestRun = runs[runs.length - 1];
+      return <article key={`${item.phase_index}:${item.question_index}`}>
+        <header><Code2 size={17} /><div><strong>{item.problem.title}</strong><span>{item.snapshot_count} 个代码版本 · {runs.length} 次运行</span></div>{latestRun && <StatusBadge tone={latestRun.status === "passed" ? "success" : "warning"}>{latestRun.passed_count} / {latestRun.total_count} 通过</StatusBadge>}</header>
+        <pre><code>{item.latest_source}</code></pre>
+        <div className="coding-report-notes"><strong>复杂度说明</strong><p>{item.complexity_notes || "本场没有提交复杂度说明。"}</p></div>
+        {runs.length > 0 && <div className="coding-run-history">{runs.map((run, index) => <span key={`${run.created_at}-${index}`} className={run.status === "passed" ? "passed" : "failed"}>v{run.snapshot_revision + 1} · {run.passed_count}/{run.total_count} · {run.duration_ms}ms</span>)}</div>}
+      </article>;
+    })}</div>
+  </section>;
 }
 
 function ReviewResult({ review }: { review: InterviewReportReviewData }) {

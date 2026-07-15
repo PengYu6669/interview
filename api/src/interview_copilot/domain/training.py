@@ -9,6 +9,7 @@ InterviewType = Literal[
     "project",
     "technical",
     "system_design",
+    "coding",
     "behavioral",
     "weak_area",
 ]

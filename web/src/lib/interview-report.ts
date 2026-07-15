@@ -1,4 +1,5 @@
 import type { components } from "./api-schema";
+import { codingProblemSchema } from "./interview-coding";
 import { boardStateSchema } from "./interview-board";
 import { z } from "zod";
 
@@ -15,7 +16,7 @@ export const interviewHistorySchema: z.ZodType<InterviewHistoryItem[]> = z.array
   target_company: z.string(),
   target_level: z.enum(["intern", "campus", "mid", "senior"]),
   interview_round: z.enum(["first", "second", "final", "manager"]),
-  interview_type: z.enum(["comprehensive", "project", "technical", "system_design", "behavioral", "weak_area"]),
+  interview_type: z.enum(["comprehensive", "project", "technical", "system_design", "coding", "behavioral", "weak_area"]),
   mode: z.string(),
   duration_minutes: z.number().int(),
   pressure_level: z.number().int(),
@@ -97,7 +98,7 @@ export const interviewReportSchema: z.ZodType<InterviewReportData> = z.object({
   target_company: z.string(),
   target_level: z.enum(["intern", "campus", "mid", "senior"]),
   interview_round: z.enum(["first", "second", "final", "manager"]),
-  interview_type: z.enum(["comprehensive", "project", "technical", "system_design", "behavioral", "weak_area"]),
+  interview_type: z.enum(["comprehensive", "project", "technical", "system_design", "coding", "behavioral", "weak_area"]),
   mode: z.string(),
   pressure_level: z.number().int().min(1).max(5),
   depth_level: z.number().int().min(1).max(5),
@@ -121,6 +122,22 @@ export const interviewReportSchema: z.ZodType<InterviewReportData> = z.object({
     created_at: z.string(),
   })),
   board_snapshot: z.object({ revision: z.number().int().nonnegative(), state: boardStateSchema, created_at: z.string() }).nullable().optional(),
+  coding_evidence: z.array(z.object({
+    phase_index: z.number().int().nonnegative(),
+    question_index: z.number().int().nonnegative(),
+    problem: codingProblemSchema,
+    latest_source: z.string(),
+    complexity_notes: z.string(),
+    snapshot_count: z.number().int().positive(),
+    runs: z.array(z.object({
+      status: z.enum(["passed", "failed", "compile_error", "runtime_error", "timed_out", "output_limit", "memory_limit"]),
+      snapshot_revision: z.number().int().nonnegative(),
+      passed_count: z.number().int().nonnegative(),
+      total_count: z.number().int().nonnegative(),
+      duration_ms: z.number().int().nonnegative(),
+      created_at: z.string(),
+    })),
+  })).default([]),
   content: z.object({
     overall_score: z.number().int(),
     evidence_coverage: z.number().int(),

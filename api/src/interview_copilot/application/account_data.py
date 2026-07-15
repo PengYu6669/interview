@@ -21,6 +21,10 @@ from interview_copilot.domain.account import (
     ExportQuestionMessage,
 )
 from interview_copilot.domain.auth import UserProfile
+from interview_copilot.infrastructure.coding import (
+    InterviewCodingRunRecord,
+    InterviewCodingSnapshotRecord,
+)
 from interview_copilot.infrastructure.database import UserRecord
 from interview_copilot.infrastructure.drafts import (
     TrainingDraftQuestionRecord,
@@ -226,6 +230,20 @@ class AccountDataService:
             if report
             else []
         )
+        coding_snapshots = self._session.scalars(
+            select(InterviewCodingSnapshotRecord)
+            .where(InterviewCodingSnapshotRecord.session_id == record.id)
+            .order_by(
+                InterviewCodingSnapshotRecord.phase_index,
+                InterviewCodingSnapshotRecord.question_index,
+                InterviewCodingSnapshotRecord.revision,
+            )
+        ).all()
+        coding_runs = self._session.scalars(
+            select(InterviewCodingRunRecord)
+            .where(InterviewCodingRunRecord.session_id == record.id)
+            .order_by(InterviewCodingRunRecord.created_at)
+        ).all()
         return ExportInterviewSession(
             id=record.id,
             draft_id=record.draft_id,
@@ -267,6 +285,30 @@ class AccountDataService:
                 )
                 for turn in turns
             ],
+            coding_snapshots=[
+                {
+                    "id": item.id,
+                    "phase_index": item.phase_index,
+                    "question_index": item.question_index,
+                    "revision": item.revision,
+                    "source": item.source,
+                    "complexity_notes": item.complexity_notes,
+                    "created_at": item.created_at,
+                }
+                for item in coding_snapshots
+            ],
+            coding_runs=[
+                {
+                    "id": item.id,
+                    "snapshot_id": item.snapshot_id,
+                    "status": item.status,
+                    "tests": item.tests,
+                    "duration_ms": item.duration_ms,
+                    "error": item.error,
+                    "created_at": item.created_at,
+                }
+                for item in coding_runs
+            ],
             report=(
                 ExportInterviewReport(
                     content=report.content,
@@ -274,6 +316,7 @@ class AccountDataService:
                     verification_error=report.verification_error,
                     verified_claims=report.verified_claims,
                     board_snapshot=report.board_snapshot,
+                    coding_evidence=report.coding_evidence,
                     model=report.model,
                     prompt_version=report.prompt_version,
                     rubric_version=report.rubric_version,
