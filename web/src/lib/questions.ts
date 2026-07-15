@@ -5,6 +5,7 @@ export type QuestionSummary = components["schemas"]["QuestionSummary"];
 export type QuestionDetail = components["schemas"]["QuestionDetail"];
 export type UserQuestionState = components["schemas"]["UserQuestionState"];
 export type QuestionImportResult = components["schemas"]["QuestionImportResult"];
+export type QuestionDocumentSummary = components["schemas"]["QuestionDocumentSummary"];
 export type QuestionChatAnswer = components["schemas"]["QuestionChatAnswer"];
 export type QuestionChatHistory = components["schemas"]["QuestionChatHistory"];
 export type QuestionChatMessageData = components["schemas"]["QuestionChatMessageData"];
@@ -20,6 +21,10 @@ const questionSummaryObjectSchema = z.object({
   difficulty: z.string(),
   question_type: z.string(),
   topics: z.array(topicSchema),
+  framework: z.string(),
+  source_document_id: z.string().uuid().nullable(),
+  source_document_name: z.string().nullable(),
+  source_document_version: z.number().int().nullable(),
 });
 export const questionSummarySchema: z.ZodType<QuestionSummary> = questionSummaryObjectSchema;
 
@@ -30,10 +35,26 @@ export const questionDetailSchema: z.ZodType<QuestionDetail> = questionSummaryOb
   sources: z.array(z.object({ title: z.string(), url: z.string(), publisher: z.string() })),
   content_markdown: z.string(),
   editable: z.boolean(),
-  source_document_name: z.string().nullable(),
+  evidence: z.array(z.object({ section_key: z.string(), heading_path: z.array(z.string()), quote: z.string() })),
+});
+
+export const questionDocumentSchema: z.ZodType<QuestionDocumentSummary> = z.object({
+  id: z.string().uuid(),
+  filename: z.string(),
+  media_type: z.string(),
+  version: z.number().int().positive(),
+  status: z.string(),
+  warnings: z.array(z.string()),
+  coverage_ratio: z.number().min(0).max(1),
+  section_count: z.number().int().nonnegative(),
+  covered_section_count: z.number().int().nonnegative(),
+  question_count: z.number().int().nonnegative(),
+  created_at: z.string(),
+  updated_at: z.string(),
 });
 
 export const questionImportResultSchema: z.ZodType<QuestionImportResult> = z.object({
+  document: questionDocumentSchema,
   questions: z.array(questionDetailSchema),
   warnings: z.array(z.string()),
 });
@@ -65,3 +86,4 @@ export const userQuestionStateSchema: z.ZodType<UserQuestionState> = z.object({
 });
 
 export const QUESTION_INTERVIEW_SELECTION_KEY = "interview-copilot.question-selection.v1";
+export const QUESTION_COACHING_SELECTION_KEY = "interview-copilot.coaching-question-selection.v1";

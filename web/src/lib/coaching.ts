@@ -40,6 +40,13 @@ const taskSchema = z.object({
   scenario_version: z.string(),
   facts: z.array(z.object({ label: z.string(), value: z.string(), source_type: z.enum(["virtual", "curated"]), source_label: z.string().nullable() })),
   constraint_change: z.string().nullable(),
+  source_questions: z.array(z.object({
+    id: z.string().uuid(),
+    title: z.string(),
+    prompt: z.string(),
+    framework: z.enum(["technical", "star", "prep", "system_design"]),
+    evidence_quotes: z.array(z.string()).optional(),
+  })).optional(),
 });
 
 const decisionSchema = z.object({

@@ -10,6 +10,7 @@ from sqlalchemy.orm import InstrumentedAttribute, Session
 from interview_copilot.domain.account import (
     AccountDataExport,
     AccountDataSummary,
+    ExportCareerProfile,
     ExportDraft,
     ExportInterviewReport,
     ExportInterviewReportReview,
@@ -18,9 +19,12 @@ from interview_copilot.domain.account import (
     ExportLearningState,
     ExportPrivateQuestion,
     ExportQuestionConversation,
+    ExportQuestionDocument,
     ExportQuestionMessage,
+    ExportWeeklyPlan,
 )
 from interview_copilot.domain.auth import UserProfile
+from interview_copilot.infrastructure.career import CareerProfileRecord, WeeklyPlanRecord
 from interview_copilot.infrastructure.coding import (
     InterviewCodingRunRecord,
     InterviewCodingSnapshotRecord,
@@ -38,6 +42,7 @@ from interview_copilot.infrastructure.interviews import (
 )
 from interview_copilot.infrastructure.questions import (
     QuestionConversationRecord,
+    QuestionDocumentRecord,
     QuestionMessageRecord,
     QuestionRecord,
     UserQuestionNoteRecord,
@@ -94,6 +99,17 @@ class AccountDataService:
             .where(QuestionRecord.owner_user_id == user_id)
             .order_by(QuestionRecord.created_at)
         ).all()
+        question_documents = self._session.scalars(
+            select(QuestionDocumentRecord)
+            .where(QuestionDocumentRecord.owner_user_id == user_id)
+            .order_by(QuestionDocumentRecord.created_at)
+        ).all()
+        career_profile = self._session.get(CareerProfileRecord, user_id)
+        weekly_plans = self._session.scalars(
+            select(WeeklyPlanRecord)
+            .where(WeeklyPlanRecord.user_id == user_id)
+            .order_by(WeeklyPlanRecord.week_start)
+        ).all()
         learning_states = self._learning_states(user_id)
         conversations = self._question_conversations(user_id)
         return AccountDataExport(
@@ -138,12 +154,51 @@ class AccountDataService:
                     common_mistakes=question.common_mistakes,
                     content_markdown=question.content_markdown,
                     source_document_name=question.source_document_name,
+                    source_document_id=question.source_document_id,
+                    framework=question.framework,
+                    evidence=[
+                        {
+                            "section_key": item.section_key,
+                            "heading_path": list(item.heading_path),
+                            "quote": item.quote,
+                        }
+                        for item in question.evidence
+                    ],
                     created_at=question.created_at,
                 )
                 for question in private_questions
             ],
+            question_documents=[
+                ExportQuestionDocument(
+                    id=document.id,
+                    filename=document.filename,
+                    media_type=document.media_type,
+                    normalized_text=document.normalized_text,
+                    content_hash=document.content_hash,
+                    version=document.version,
+                    status=document.status,
+                    warnings=list(document.warnings),
+                    coverage_ratio=document.coverage_ratio,
+                    section_count=document.section_count,
+                    covered_section_count=document.covered_section_count,
+                    model=document.model,
+                    prompt_version=document.prompt_version,
+                    created_at=document.created_at,
+                    updated_at=document.updated_at,
+                )
+                for document in question_documents
+            ],
             learning_states=learning_states,
             question_conversations=conversations,
+            career_profile=(
+                ExportCareerProfile.model_validate(career_profile, from_attributes=True)
+                if career_profile
+                else None
+            ),
+            weekly_plans=[
+                ExportWeeklyPlan.model_validate(plan, from_attributes=True)
+                for plan in weekly_plans
+            ],
         )
 
     def delete_account(self, *, user_id: UUID, current_password: str) -> None:

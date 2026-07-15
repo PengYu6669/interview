@@ -35,6 +35,7 @@ class ToolContext:
     user_id: UUID
     request_id: UUID
     session_id: UUID | None = None
+    allowed_source_ids: frozenset[UUID] = frozenset()
 
 
 @dataclass(frozen=True, slots=True)
@@ -85,12 +86,18 @@ class RetrieveEvidenceTool:
 
     async def execute(self, context: ToolContext, arguments: ToolInput) -> BaseModel:
         request = RetrieveEvidenceInput.model_validate(arguments)
+        requested_ids = set(request.source_ids) or set(context.allowed_source_ids)
+        if not requested_ids:
+            raise ToolExecutionError("本轮没有授权任何检索资料")
+        unauthorized = requested_ids.difference(context.allowed_source_ids)
+        if unauthorized:
+            raise ToolExecutionError("工具请求包含本轮未授权的资料")
         evidence = await self._search.search(
             user_id=context.user_id,
             query=request.query,
             corpus_types=[self._corpus_type],
             source_types=self._source_types,
-            source_ids=request.source_ids,
+            source_ids=sorted(requested_ids, key=str),
             limit=request.limit,
         )
         return RetrieveEvidenceOutput(evidence=evidence)

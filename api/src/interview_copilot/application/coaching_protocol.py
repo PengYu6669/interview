@@ -5,6 +5,7 @@ from interview_copilot.domain.coaching import (
     CoachingMode,
     CoachingScaffoldStep,
     CoachingScenarioFact,
+    CoachingSourceQuestion,
     CoachingTaskPlan,
     StructurePuzzle,
     StructurePuzzleFragment,
@@ -133,6 +134,7 @@ def normalize_task_plan(
     mode: CoachingMode,
     exercise_type: CoachingExerciseType,
     difficulty: CoachingDifficulty,
+    source_questions: list[CoachingSourceQuestion] | None = None,
 ) -> CoachingTaskPlan:
     framework = FRAMEWORK_BY_EXERCISE[exercise_type]
     scaffold = [
@@ -156,7 +158,15 @@ def normalize_task_plan(
         ),
         "scaffold": scaffold,
         "puzzle": _puzzle(framework) if difficulty == "guided" else None,
+        "source_questions": source_questions or [],
     }
+    if mode == "structured_expression" and source_questions:
+        source = source_questions[0]
+        update.update(
+            title=source.title,
+            scenario="围绕你从个人资料题库选择的问题进行同题两次表达训练。",
+            primary_question=source.prompt,
+        )
     if mode == "business_sense":
         scenario = BUSINESS_SCENARIOS[exercise_type]
         raw_facts = scenario["facts"]

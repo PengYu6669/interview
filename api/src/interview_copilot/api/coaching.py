@@ -118,6 +118,8 @@ async def create_coaching_session(
 ) -> CoachingSessionData:
     try:
         return await service.create(user_id=user.id, request_id=uuid4(), **request.model_dump())
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     except (DeepSeekAgentError, SkillRegistryError, RuntimeError) as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 

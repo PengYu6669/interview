@@ -91,13 +91,17 @@ class TrainingCoachAgent:
         request_id: UUID,
         session_id: UUID | None = None,
     ) -> tuple[ActivatedSkill, CoachingTaskPlan]:
+        allowed_source_ids = self._source_ids(user_data)
         result = await self._graph.ainvoke(
             CoachState(
                 operation="plan",
                 mode=mode,
                 user_data=user_data,
                 tool_context=ToolContext(
-                    user_id=user_id, request_id=request_id, session_id=session_id
+                    user_id=user_id,
+                    request_id=request_id,
+                    session_id=session_id,
+                    allowed_source_ids=allowed_source_ids,
                 ),
             )
         )
@@ -141,6 +145,19 @@ class TrainingCoachAgent:
             first_answer=first_answer,
         )
         return decision
+
+    @staticmethod
+    def _source_ids(user_data: dict[str, object]) -> frozenset[UUID]:
+        raw_ids = user_data.get("允许使用的资料编号")
+        if not isinstance(raw_ids, list):
+            return frozenset()
+        parsed: set[UUID] = set()
+        for raw_id in raw_ids:
+            try:
+                parsed.add(UUID(str(raw_id)))
+            except ValueError as exc:
+                raise DeepSeekAgentError("训练资料编号格式不正确") from exc
+        return frozenset(parsed)
 
     def _build_graph(self):  # type: ignore[no-untyped-def]
         graph = StateGraph(CoachState)

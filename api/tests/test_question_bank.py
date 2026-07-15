@@ -18,6 +18,10 @@ from interview_copilot.infrastructure.questions import (
 from interview_copilot.providers.deepseek_question_bank import (
     DeepSeekQuestionBankProvider,
     GeneratedChatAnswer,
+    GeneratedQuestion,
+    GeneratedQuestionEvidence,
+    GeneratedQuestions,
+    QuestionGenerationSection,
 )
 
 
@@ -355,3 +359,151 @@ async def test_question_chat_retrieval_is_scoped_to_selected_question() -> None:
 
         assert search.source_ids == [question.id]
         assert answer.citations[0].quote == "检索必须按用户和资料来源隔离。"
+
+
+def test_generated_questions_keep_only_exact_source_evidence() -> None:
+    sections = [
+        QuestionGenerationSection(
+            key="section-0",
+            heading_path=["项目复盘"],
+            content="我负责检索评测，并将召回率从 70% 提升到 86%。",
+        )
+    ]
+    base = {
+        "prompt": "你如何证明这项改进有效？",
+        "difficulty": "进阶",
+        "question_type": "项目",
+        "framework": "star",
+        "intent": "考察结果表达",
+        "answer_outline": ["说明职责", "量化结果"],
+        "common_mistakes": ["缺少证据"],
+        "topics": ["检索"],
+        "content_markdown": "# 回答框架",
+    }
+    generated = GeneratedQuestions(
+        questions=[
+            GeneratedQuestion(
+                title="有效证据",
+                evidence=[
+                    GeneratedQuestionEvidence(
+                        section_key="section-0", quote="召回率从 70% 提升到 86%"
+                    )
+                ],
+                **base,
+            ),
+            GeneratedQuestion(
+                title="编造证据",
+                evidence=[
+                    GeneratedQuestionEvidence(
+                        section_key="section-0", quote="成本降低了 50%"
+                    )
+                ],
+                **base,
+            ),
+        ]
+    )
+
+    result = DeepSeekQuestionBankProvider._validate_evidence(generated, sections)
+
+    assert [item.title for item in result.questions] == ["有效证据"]
+    assert "编造证据" in result.warnings[0]
+
+
+@pytest.mark.asyncio
+async def test_imported_document_deduplicates_versions_and_preserves_coverage() -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    with Session(engine, expire_on_commit=False) as session:
+        owner = UserRecord(
+            username="document-owner",
+            email="document-owner@example.com",
+            password_hash="hash",
+            created_at=datetime.now(UTC),
+        )
+        stranger = UserRecord(
+            username="document-stranger",
+            email="document-stranger@example.com",
+            password_hash="hash",
+            created_at=datetime.now(UTC),
+        )
+        session.add_all([owner, stranger])
+        session.commit()
+
+        class FakeProvider:
+            model_name = "fake-question-model"
+            prompt_version = "question-test-v1"
+
+            async def generate_questions(
+                self,
+                sections: list[QuestionGenerationSection],
+                *,
+                desired_questions: int,
+            ) -> GeneratedQuestions:
+                del desired_questions
+                return GeneratedQuestions(
+                    questions=[
+                        GeneratedQuestion(
+                            title=f"片段 {section.key}",
+                            prompt="这段经历如何体现个人贡献？",
+                            difficulty="进阶",
+                            question_type="项目",
+                            framework="star",
+                            intent="考察结构化项目表达",
+                            answer_outline=["说明职责", "量化结果"],
+                            common_mistakes=["只讲团队"],
+                            topics=["项目复盘"],
+                            evidence=[
+                                GeneratedQuestionEvidence(
+                                    section_key=section.key,
+                                    quote="召回率从 70% 提升到 86%",
+                                )
+                            ],
+                            content_markdown="# 项目复盘",
+                        )
+                        for section in sections
+                    ]
+                )
+
+        class FakeIndexing:
+            source_ids: list[UUID] = []
+
+            async def index(self, document: object) -> None:
+                self.source_ids.append(document.source_id)  # type: ignore[attr-defined]
+
+        text = "我独立负责检索评测，将召回率从 70% 提升到 86%，并接入发布门禁。"
+        workflow = QuestionWorkflowService(
+            session,
+            deepseek=FakeProvider(),  # type: ignore[arg-type]
+            rag_indexing=FakeIndexing(),  # type: ignore[arg-type]
+        )
+        first = await workflow.import_document(
+            user_id=owner.id,
+            filename="项目复盘.md",
+            media_type="text/markdown",
+            text=text,
+        )
+        duplicate = await workflow.import_document(
+            user_id=owner.id,
+            filename="副本.md",
+            media_type="text/markdown",
+            text=text,
+        )
+        regenerated = await workflow.regenerate_document(
+            user_id=owner.id,
+            document_id=first.document.id,
+        )
+
+        assert first.document.coverage_ratio == 1
+        assert first.questions[0].framework == "star"
+        assert first.questions[0].evidence[0].quote in text
+        assert duplicate.document.id == first.document.id
+        assert "相同内容已经导入" in duplicate.warnings[0]
+        assert regenerated.document.version == 2
+        assert len(workflow.list_documents(user_id=owner.id)) == 2
+        with pytest.raises(LookupError, match="找不到这份题库资料"):
+            await workflow.regenerate_document(
+                user_id=stranger.id,
+                document_id=first.document.id,
+            )
+        workflow.delete_document(user_id=owner.id, document_id=first.document.id)
+        assert len(workflow.list_documents(user_id=owner.id)) == 1

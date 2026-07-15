@@ -1,0 +1,57 @@
+{
+  "dataset_version": "coaching-skill-eval-v1",
+  "skill_versions": {
+    "structured-expression-coach": "2.0.0",
+    "business-sense-coach": "2.0.0"
+  },
+  "cases": [
+    {
+      "id": "structured-star-project-result",
+      "mode": "structured_expression",
+      "exercise_type": "star_story",
+      "difficulty": "guided",
+      "target_role": "AI 应用开发工程师",
+      "training_goal": "练习个人职责和量化结果",
+      "answers": [
+        "我们做了一个检索系统，效果不错。",
+        "我独立负责混合检索评测，建立 120 条问题集，将召回率从 70% 提升到 86%，并把评测接入发布门禁。"
+      ],
+      "expected_framework": "star",
+      "requires_same_question_retry": true,
+      "max_priority_gaps": 2,
+      "requires_exact_answer_evidence": true
+    },
+    {
+      "id": "structured-prep-tradeoff",
+      "mode": "structured_expression",
+      "exercise_type": "prep_pitch",
+      "difficulty": "assisted",
+      "target_role": "后端开发工程师",
+      "training_goal": "练习技术取舍结论先行",
+      "answers": [
+        "两种方案都可以，要看情况。",
+        "我会先选异步任务队列，因为当前瓶颈是长任务阻塞请求；它能隔离失败并削峰，代价是引入最终一致性，所以我会补幂等键和任务状态查询。"
+      ],
+      "expected_framework": "prep",
+      "requires_same_question_retry": true,
+      "max_priority_gaps": 2,
+      "requires_exact_answer_evidence": true
+    },
+    {
+      "id": "business-decision-multiple-valid-answers",
+      "mode": "business_sense",
+      "exercise_type": "decision_simulation",
+      "difficulty": "pressure",
+      "target_role": "AI 产品技术负责人",
+      "training_goal": "在信息不完整时给出可验证的业务决策",
+      "answers": [
+        "我会先做功能，因为用户需要。",
+        "我会先验证高频客服场景，把首要指标定为人工转接率下降，同时监控误答投诉率；先对 10% 流量灰度两周，如果投诉率超过阈值就回滚，再根据分群结果决定扩大还是调整场景。"
+      ],
+      "expected_framework": "business_decision",
+      "requires_same_question_retry": true,
+      "max_priority_gaps": 2,
+      "requires_exact_answer_evidence": true
+    }
+  ]
+}

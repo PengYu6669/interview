@@ -49,6 +49,16 @@ class CoachingScenarioFact(BaseModel):
     source_label: str | None = Field(default=None, max_length=160)
 
 
+class CoachingSourceQuestion(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: UUID
+    title: str = Field(min_length=1, max_length=250)
+    prompt: str = Field(min_length=1, max_length=2_000)
+    framework: Literal["technical", "star", "prep", "system_design"]
+    evidence_quotes: list[str] = Field(default_factory=list, max_length=8)
+
+
 class CoachingTaskPlan(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -68,6 +78,7 @@ class CoachingTaskPlan(BaseModel):
     scenario_version: str = Field(default="generated-v1", min_length=1, max_length=80)
     facts: list[CoachingScenarioFact] = Field(default_factory=list, max_length=12)
     constraint_change: str | None = Field(default=None, max_length=500)
+    source_questions: list[CoachingSourceQuestion] = Field(default_factory=list, max_length=20)
 
 
 class DimensionAssessment(BaseModel):

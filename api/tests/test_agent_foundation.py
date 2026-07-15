@@ -13,6 +13,8 @@ from interview_copilot.application.agent.coach import (
 )
 from interview_copilot.application.agent.skills import SkillRegistry, SkillRegistryError
 from interview_copilot.application.agent.tools import (
+    RetrieveEvidenceInput,
+    RetrieveEvidenceTool,
     ToolAuditEvent,
     ToolCall,
     ToolContext,
@@ -51,6 +53,48 @@ class CapturingAuditSink:
 
     async def record(self, event: ToolAuditEvent) -> None:
         self.events.append(event)
+
+
+@pytest.mark.asyncio
+async def test_retrieval_tool_enforces_hard_source_allowlist() -> None:
+    allowed_id = uuid4()
+    blocked_id = uuid4()
+
+    class FakeSearch:
+        source_ids: list = []
+
+        async def search(self, **kwargs: object) -> list:
+            self.source_ids = list(kwargs["source_ids"])  # type: ignore[arg-type]
+            return []
+
+    search = FakeSearch()
+    tool = RetrieveEvidenceTool(
+        search,  # type: ignore[arg-type]
+        name="retrieve_knowledge_evidence",
+        description="测试",
+        corpus_type="knowledge",
+    )
+    context = ToolContext(
+        user_id=uuid4(),
+        request_id=uuid4(),
+        allowed_source_ids=frozenset({allowed_id}),
+    )
+
+    await tool.execute(
+        context,
+        RetrieveEvidenceInput(query="检索", source_ids=[allowed_id]),
+    )
+    assert search.source_ids == [allowed_id]
+    with pytest.raises(ToolExecutionError, match="未授权"):
+        await tool.execute(
+            context,
+            RetrieveEvidenceInput(query="越权检索", source_ids=[blocked_id]),
+        )
+    with pytest.raises(ToolExecutionError, match="没有授权"):
+        await tool.execute(
+            ToolContext(user_id=uuid4(), request_id=uuid4()),
+            RetrieveEvidenceInput(query="空授权"),
+        )
 
 
 def test_skill_registry_progressively_loads_metadata_then_content() -> None:

@@ -205,7 +205,7 @@ def test_summary_and_export_only_include_current_users_data(database: Session) -
     assert summary.private_question_count == 1
     assert exported.training_drafts[0].id == draft.id
     assert exported.interview_sessions[0].turns[0].answer == "我负责核心接口设计。"
-    assert exported.format_version == "account-export-v2"
+    assert exported.format_version == "account-export-v3"
     assert exported.interview_sessions[0].report is not None
     assert exported.interview_sessions[0].report.reviews[0].decision == "excluded"
     assert exported.learning_states[0].note == "需要补充量化结果"

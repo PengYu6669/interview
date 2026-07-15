@@ -16,6 +16,12 @@ class SourceData(BaseModel):
     publisher: str
 
 
+class QuestionEvidenceData(BaseModel):
+    section_key: str
+    heading_path: list[str]
+    quote: str
+
+
 class QuestionSummary(BaseModel):
     id: UUID
     slug: str
@@ -24,6 +30,10 @@ class QuestionSummary(BaseModel):
     difficulty: str
     question_type: str
     topics: list[TopicData]
+    framework: str = "technical"
+    source_document_id: UUID | None = None
+    source_document_name: str | None = None
+    source_document_version: int | None = None
 
 
 class QuestionDetail(QuestionSummary):
@@ -33,10 +43,26 @@ class QuestionDetail(QuestionSummary):
     sources: list[SourceData]
     content_markdown: str = ""
     editable: bool = False
-    source_document_name: str | None = None
+    evidence: list[QuestionEvidenceData] = Field(default_factory=list)
+
+
+class QuestionDocumentSummary(BaseModel):
+    id: UUID
+    filename: str
+    media_type: str
+    version: int
+    status: str
+    warnings: list[str]
+    coverage_ratio: float = Field(ge=0, le=1)
+    section_count: int = Field(ge=0)
+    covered_section_count: int = Field(ge=0)
+    question_count: int = Field(ge=0)
+    created_at: datetime
+    updated_at: datetime
 
 
 class QuestionImportResult(BaseModel):
+    document: QuestionDocumentSummary
     questions: list[QuestionDetail]
     warnings: list[str] = Field(default_factory=list)
 

@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any
 from uuid import UUID
 
@@ -128,7 +128,49 @@ class ExportPrivateQuestion(BaseModel):
     common_mistakes: list[str]
     content_markdown: str
     source_document_name: str | None
+    source_document_id: UUID | None
+    framework: str
+    evidence: list[dict[str, Any]]
     created_at: datetime
+
+
+class ExportQuestionDocument(BaseModel):
+    id: UUID
+    filename: str
+    media_type: str
+    normalized_text: str
+    content_hash: str
+    version: int
+    status: str
+    warnings: list[str]
+    coverage_ratio: float
+    section_count: int
+    covered_section_count: int
+    model: str
+    prompt_version: str
+    created_at: datetime
+    updated_at: datetime
+
+
+class ExportCareerProfile(BaseModel):
+    target_role: str
+    target_level: str
+    target_companies: list[str]
+    preferred_cities: list[str]
+    weekly_hours: int
+    constraints: str
+    confirmed_at: datetime
+    updated_at: datetime
+
+
+class ExportWeeklyPlan(BaseModel):
+    id: UUID
+    week_start: date
+    goal: str
+    items: list[dict[str, Any]]
+    status: str
+    created_at: datetime
+    updated_at: datetime
 
 
 class ExportLearningState(BaseModel):
@@ -158,11 +200,14 @@ class ExportQuestionConversation(BaseModel):
 
 
 class AccountDataExport(BaseModel):
-    format_version: str = "account-export-v2"
+    format_version: str = "account-export-v3"
     exported_at: datetime
     account: UserProfile
     training_drafts: list[ExportDraft]
     interview_sessions: list[ExportInterviewSession]
     private_questions: list[ExportPrivateQuestion]
+    question_documents: list[ExportQuestionDocument]
     learning_states: list[ExportLearningState]
     question_conversations: list[ExportQuestionConversation]
+    career_profile: ExportCareerProfile | None
+    weekly_plans: list[ExportWeeklyPlan]

@@ -22,6 +22,7 @@ from interview_copilot.domain.questions import (
     QuestionChatAnswer,
     QuestionChatHistory,
     QuestionDetail,
+    QuestionDocumentSummary,
     QuestionImportResult,
     QuestionSummary,
     UserQuestionState,
@@ -146,18 +147,55 @@ async def import_questions(
         if not parsed.text.strip():
             raise InvalidDocumentError("文档没有可提取的文字")
         result = await workflow.import_document(
-            user_id=user.id, filename=parsed.filename, text=parsed.text
+            user_id=user.id,
+            filename=parsed.filename,
+            media_type=parsed.media_type,
+            text=parsed.text,
+            initial_warnings=processed.warnings,
         )
-        result.warnings[:0] = processed.warnings
         return result
     except UnsupportedDocumentError as exc:
         raise HTTPException(status_code=415, detail=str(exc)) from exc
-    except (ProtectedDocumentError, InvalidDocumentError) as exc:
+    except (ProtectedDocumentError, InvalidDocumentError, ValueError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except BaiduOCRError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     except RuntimeError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+@router.get("/documents", response_model=list[QuestionDocumentSummary])
+def list_question_documents(
+    user: Annotated[UserProfile, Depends(require_current_user)],
+    workflow: Annotated[QuestionWorkflowService, Depends(workflow_read_service)],
+) -> list[QuestionDocumentSummary]:
+    return workflow.list_documents(user_id=user.id)
+
+
+@router.post("/documents/{document_id}/regenerate", response_model=QuestionImportResult)
+async def regenerate_question_document(
+    document_id: UUID,
+    user: Annotated[UserProfile, Depends(require_current_user)],
+    workflow: Annotated[QuestionWorkflowService, Depends(workflow_service)],
+) -> QuestionImportResult:
+    try:
+        return await workflow.regenerate_document(user_id=user.id, document_id=document_id)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except (RuntimeError, ValueError) as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+@router.delete("/documents/{document_id}", status_code=204)
+def delete_question_document(
+    document_id: UUID,
+    user: Annotated[UserProfile, Depends(require_current_user)],
+    workflow: Annotated[QuestionWorkflowService, Depends(workflow_read_service)],
+) -> None:
+    try:
+        workflow.delete_document(user_id=user.id, document_id=document_id)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.get("/{slug}", response_model=QuestionDetail)

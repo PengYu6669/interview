@@ -246,6 +246,75 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/career": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Career Workspace */
+        get: operations["get_career_workspace_v1_career_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/career/profile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Save Career Profile */
+        put: operations["save_career_profile_v1_career_profile_put"];
+        post?: never;
+        /** Delete Career Profile */
+        delete: operations["delete_career_profile_v1_career_profile_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/career/weekly-plan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Save Weekly Plan */
+        put: operations["save_weekly_plan_v1_career_weekly_plan_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/career/weekly-plan/{plan_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Weekly Plan */
+        delete: operations["delete_weekly_plan_v1_career_weekly_plan__plan_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/drafts": {
         parameters: {
             query?: never;
@@ -589,6 +658,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/questions/documents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Question Documents */
+        get: operations["list_question_documents_v1_questions_documents_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/questions/documents/{document_id}/regenerate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Regenerate Question Document */
+        post: operations["regenerate_question_document_v1_questions_documents__document_id__regenerate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/questions/documents/{document_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Question Document */
+        delete: operations["delete_question_document_v1_questions_documents__document_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/questions/{slug}": {
         parameters: {
             query?: never;
@@ -815,7 +935,7 @@ export interface components {
         AccountDataExport: {
             /**
              * Format Version
-             * @default account-export-v2
+             * @default account-export-v3
              */
             format_version: string;
             /**
@@ -830,10 +950,15 @@ export interface components {
             interview_sessions: components["schemas"]["ExportInterviewSession"][];
             /** Private Questions */
             private_questions: components["schemas"]["ExportPrivateQuestion"][];
+            /** Question Documents */
+            question_documents: components["schemas"]["ExportQuestionDocument"][];
             /** Learning States */
             learning_states: components["schemas"]["ExportLearningState"][];
             /** Question Conversations */
             question_conversations: components["schemas"]["ExportQuestionConversation"][];
+            career_profile: components["schemas"]["ExportCareerProfile"] | null;
+            /** Weekly Plans */
+            weekly_plans: components["schemas"]["ExportWeeklyPlan"][];
         };
         /** AccountDataSummary */
         AccountDataSummary: {
@@ -980,6 +1105,71 @@ export interface components {
         Body_parse_uploaded_document_v1_documents_parse_post: {
             /** File */
             file: string;
+        };
+        /** CareerProfile */
+        CareerProfile: {
+            /**
+             * Target Role
+             * @default
+             */
+            target_role: string;
+            /**
+             * Target Level
+             * @default
+             */
+            target_level: string;
+            /** Target Companies */
+            target_companies?: string[];
+            /** Preferred Cities */
+            preferred_cities?: string[];
+            /**
+             * Weekly Hours
+             * @default 5
+             */
+            weekly_hours: number;
+            /**
+             * Constraints
+             * @default
+             */
+            constraints: string;
+            /** Confirmed At */
+            confirmed_at?: string | null;
+            /** Updated At */
+            updated_at?: string | null;
+        };
+        /** CareerProfileRequest */
+        CareerProfileRequest: {
+            /**
+             * Target Role
+             * @default
+             */
+            target_role: string;
+            /**
+             * Target Level
+             * @default
+             */
+            target_level: string;
+            /** Target Companies */
+            target_companies?: string[];
+            /** Preferred Cities */
+            preferred_cities?: string[];
+            /**
+             * Weekly Hours
+             * @default 5
+             */
+            weekly_hours: number;
+            /**
+             * Constraints
+             * @default
+             */
+            constraints: string;
+        };
+        /** CareerWorkspace */
+        CareerWorkspace: {
+            profile: components["schemas"]["CareerProfile"];
+            weekly_plan: components["schemas"]["WeeklyPlan"] | null;
+            /** Suggested Focus */
+            suggested_focus?: string | null;
         };
         /** CitationData */
         CitationData: {
@@ -1320,6 +1510,25 @@ export interface components {
              */
             updated_at: string;
         };
+        /** CoachingSourceQuestion */
+        CoachingSourceQuestion: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Title */
+            title: string;
+            /** Prompt */
+            prompt: string;
+            /**
+             * Framework
+             * @enum {string}
+             */
+            framework: "technical" | "star" | "prep" | "system_design";
+            /** Evidence Quotes */
+            evidence_quotes?: string[];
+        };
         /** CoachingSpeechTicketResponse */
         CoachingSpeechTicketResponse: {
             /** Ticket */
@@ -1384,6 +1593,8 @@ export interface components {
             facts?: components["schemas"]["CoachingScenarioFact"][];
             /** Constraint Change */
             constraint_change?: string | null;
+            /** Source Questions */
+            source_questions?: components["schemas"]["CoachingSourceQuestion"][];
         };
         /** CoachingTurnData */
         CoachingTurnData: {
@@ -1742,6 +1953,31 @@ export interface components {
             /** Evidence */
             evidence: string;
         };
+        /** ExportCareerProfile */
+        ExportCareerProfile: {
+            /** Target Role */
+            target_role: string;
+            /** Target Level */
+            target_level: string;
+            /** Target Companies */
+            target_companies: string[];
+            /** Preferred Cities */
+            preferred_cities: string[];
+            /** Weekly Hours */
+            weekly_hours: number;
+            /** Constraints */
+            constraints: string;
+            /**
+             * Confirmed At
+             * Format: date-time
+             */
+            confirmed_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
         /** ExportDraft */
         ExportDraft: {
             /**
@@ -2035,6 +2271,14 @@ export interface components {
             content_markdown: string;
             /** Source Document Name */
             source_document_name: string | null;
+            /** Source Document Id */
+            source_document_id: string | null;
+            /** Framework */
+            framework: string;
+            /** Evidence */
+            evidence: {
+                [key: string]: unknown;
+            }[];
             /**
              * Created At
              * Format: date-time
@@ -2061,6 +2305,48 @@ export interface components {
             /** Messages */
             messages: components["schemas"]["ExportQuestionMessage"][];
         };
+        /** ExportQuestionDocument */
+        ExportQuestionDocument: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Filename */
+            filename: string;
+            /** Media Type */
+            media_type: string;
+            /** Normalized Text */
+            normalized_text: string;
+            /** Content Hash */
+            content_hash: string;
+            /** Version */
+            version: number;
+            /** Status */
+            status: string;
+            /** Warnings */
+            warnings: string[];
+            /** Coverage Ratio */
+            coverage_ratio: number;
+            /** Section Count */
+            section_count: number;
+            /** Covered Section Count */
+            covered_section_count: number;
+            /** Model */
+            model: string;
+            /** Prompt Version */
+            prompt_version: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
         /** ExportQuestionMessage */
         ExportQuestionMessage: {
             /** Role */
@@ -2076,6 +2362,37 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+        };
+        /** ExportWeeklyPlan */
+        ExportWeeklyPlan: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Week Start
+             * Format: date
+             */
+            week_start: string;
+            /** Goal */
+            goal: string;
+            /** Items */
+            items: {
+                [key: string]: unknown;
+            }[];
+            /** Status */
+            status: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -2666,6 +2983,17 @@ export interface components {
             question_type: string;
             /** Topics */
             topics: components["schemas"]["TopicData"][];
+            /**
+             * Framework
+             * @default technical
+             */
+            framework: string;
+            /** Source Document Id */
+            source_document_id?: string | null;
+            /** Source Document Name */
+            source_document_name?: string | null;
+            /** Source Document Version */
+            source_document_version?: number | null;
             /** Intent */
             intent: string;
             /** Answer Outline */
@@ -2684,8 +3012,44 @@ export interface components {
              * @default false
              */
             editable: boolean;
-            /** Source Document Name */
-            source_document_name?: string | null;
+            /** Evidence */
+            evidence?: components["schemas"]["QuestionEvidenceData"][];
+        };
+        /** QuestionDocumentSummary */
+        QuestionDocumentSummary: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Filename */
+            filename: string;
+            /** Media Type */
+            media_type: string;
+            /** Version */
+            version: number;
+            /** Status */
+            status: string;
+            /** Warnings */
+            warnings: string[];
+            /** Coverage Ratio */
+            coverage_ratio: number;
+            /** Section Count */
+            section_count: number;
+            /** Covered Section Count */
+            covered_section_count: number;
+            /** Question Count */
+            question_count: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
         };
         /** QuestionEditRequest */
         QuestionEditRequest: {
@@ -2694,8 +3058,18 @@ export interface components {
             /** Content Markdown */
             content_markdown: string;
         };
+        /** QuestionEvidenceData */
+        QuestionEvidenceData: {
+            /** Section Key */
+            section_key: string;
+            /** Heading Path */
+            heading_path: string[];
+            /** Quote */
+            quote: string;
+        };
         /** QuestionImportResult */
         QuestionImportResult: {
+            document: components["schemas"]["QuestionDocumentSummary"];
             /** Questions */
             questions: components["schemas"]["QuestionDetail"][];
             /** Warnings */
@@ -2720,6 +3094,17 @@ export interface components {
             question_type: string;
             /** Topics */
             topics: components["schemas"]["TopicData"][];
+            /**
+             * Framework
+             * @default technical
+             */
+            framework: string;
+            /** Source Document Id */
+            source_document_id?: string | null;
+            /** Source Document Name */
+            source_document_name?: string | null;
+            /** Source Document Version */
+            source_document_version?: number | null;
         };
         /** RegisterRequest */
         RegisterRequest: {
@@ -3041,6 +3426,82 @@ export interface components {
             rationale: string;
             /** Citations */
             citations?: components["schemas"]["VerificationCitation"][];
+        };
+        /** WeeklyPlan */
+        WeeklyPlan: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Week Start
+             * Format: date
+             */
+            week_start: string;
+            /** Goal */
+            goal: string;
+            /** Items */
+            items: components["schemas"]["WeeklyPlanItem"][];
+            /**
+             * Status
+             * @default active
+             * @enum {string}
+             */
+            status: "active" | "completed" | "archived";
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** WeeklyPlanItem */
+        WeeklyPlanItem: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Category
+             * @enum {string}
+             */
+            category: "learning" | "interview" | "resume" | "application";
+            /** Title */
+            title: string;
+            /**
+             * Target Count
+             * @default 1
+             */
+            target_count: number;
+            /**
+             * Completed Count
+             * @default 0
+             */
+            completed_count: number;
+        };
+        /** WeeklyPlanRequest */
+        WeeklyPlanRequest: {
+            /**
+             * Week Start
+             * Format: date
+             */
+            week_start: string;
+            /** Goal */
+            goal: string;
+            /** Items */
+            items: components["schemas"]["WeeklyPlanItem"][];
+            /**
+             * Status
+             * @default active
+             * @enum {string}
+             */
+            status: "active" | "completed" | "archived";
         };
         /** WorkExperience */
         WorkExperience: {
@@ -3656,6 +4117,167 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["CodingRunData"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_career_workspace_v1_career_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CareerWorkspace"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    save_career_profile_v1_career_profile_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CareerProfileRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CareerProfile"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_career_profile_v1_career_profile_delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    save_weekly_plan_v1_career_weekly_plan_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WeeklyPlanRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WeeklyPlan"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_weekly_plan_v1_career_weekly_plan__plan_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                plan_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {
@@ -4426,6 +5048,101 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["QuestionImportResult"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_question_documents_v1_questions_documents_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuestionDocumentSummary"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    regenerate_question_document_v1_questions_documents__document_id__regenerate_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                document_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuestionImportResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_question_document_v1_questions_documents__document_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                document_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

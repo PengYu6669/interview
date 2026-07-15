@@ -2,8 +2,8 @@ from datetime import UTC, datetime
 from typing import Protocol
 from uuid import UUID, uuid4
 
-from sqlalchemy import func, select
-from sqlalchemy.orm import Session
+from sqlalchemy import func, or_, select
+from sqlalchemy.orm import Session, selectinload
 
 from interview_copilot.application.agent.skills import ActivatedSkill
 from interview_copilot.application.coaching_protocol import (
@@ -20,10 +20,12 @@ from interview_copilot.domain.coaching import (
     CoachingMode,
     CoachingSessionData,
     CoachingSessionSummary,
+    CoachingSourceQuestion,
     CoachingTaskPlan,
     CoachingTurnData,
 )
 from interview_copilot.infrastructure.coaching import CoachingSessionRecord, CoachingTurnRecord
+from interview_copilot.infrastructure.questions import QuestionRecord
 
 MAX_COACHING_ATTEMPTS = 2
 
@@ -73,7 +75,23 @@ class CoachingService:
         difficulty: CoachingDifficulty = "guided",
     ) -> CoachingSessionData:
         coach = self._required_coach()
-        selected_exercise = resolve_exercise(mode, exercise_type)
+        sources = self._training_sources(user_id=user_id, source_ids=source_ids)
+        source_questions = [
+            CoachingSourceQuestion(
+                id=item.id,
+                title=item.title,
+                prompt=item.prompt,
+                framework=item.framework,  # type: ignore[arg-type]
+                evidence_quotes=[evidence.quote for evidence in item.evidence[:8]],
+            )
+            for item in sources
+        ]
+        requested_exercise = exercise_type
+        if mode == "structured_expression" and source_questions:
+            requested_exercise = (
+                "star_story" if source_questions[0].framework == "star" else "prep_pitch"
+            )
+        selected_exercise = resolve_exercise(mode, requested_exercise)
         session_id = uuid4()
         skill, task = await coach.plan(
             mode=mode,
@@ -83,6 +101,9 @@ class CoachingService:
                 "目标岗位": target_role,
                 "训练目标": training_goal,
                 "允许使用的资料编号": [str(item) for item in source_ids],
+                "用户选择的题目与原文证据": [
+                    item.model_dump(mode="json") for item in source_questions
+                ],
                 **task_protocol(
                     mode=mode,
                     exercise_type=selected_exercise,
@@ -98,6 +119,7 @@ class CoachingService:
             mode=mode,
             exercise_type=selected_exercise,
             difficulty=difficulty,
+            source_questions=source_questions,
         )
         now = datetime.now(UTC)
         record = CoachingSessionRecord(
@@ -122,6 +144,30 @@ class CoachingService:
         self._session.commit()
         self._session.refresh(record)
         return self._to_domain(record)
+
+    def _training_sources(
+        self, *, user_id: UUID, source_ids: list[UUID]
+    ) -> list[QuestionRecord]:
+        unique_ids = list(dict.fromkeys(source_ids))
+        if len(unique_ids) > 20:
+            raise ValueError("专项训练最多选择 20 道资料题")
+        if not unique_ids:
+            return []
+        records = self._session.scalars(
+            select(QuestionRecord)
+            .where(
+                QuestionRecord.id.in_(unique_ids),
+                or_(
+                    QuestionRecord.published.is_(True),
+                    QuestionRecord.owner_user_id == user_id,
+                ),
+            )
+            .options(selectinload(QuestionRecord.evidence))
+        ).all()
+        by_id = {item.id: item for item in records}
+        if set(by_id) != set(unique_ids):
+            raise ValueError("所选专项训练资料不存在或无权使用")
+        return [by_id[item] for item in unique_ids]
 
     def start(self, *, user_id: UUID, session_id: UUID) -> CoachingSessionData:
         record = self._owned(user_id=user_id, session_id=session_id)

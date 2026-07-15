@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from interview_copilot.domain.questions import (
     QuestionDetail,
+    QuestionEvidenceData,
     QuestionSummary,
     SourceData,
     TopicData,
@@ -27,7 +28,7 @@ class QuestionBankService:
         statement = (
             select(QuestionRecord)
             .where(QuestionRecord.published.is_(True))
-            .options(selectinload(QuestionRecord.topics))
+            .options(selectinload(QuestionRecord.topics), selectinload(QuestionRecord.document))
         )
         if topic:
             statement = statement.where(QuestionRecord.topics.any(TopicRecord.slug == topic))
@@ -40,7 +41,7 @@ class QuestionBankService:
         records = self._session.scalars(
             select(QuestionRecord)
             .where(QuestionRecord.owner_user_id == user_id)
-            .options(selectinload(QuestionRecord.topics))
+            .options(selectinload(QuestionRecord.topics), selectinload(QuestionRecord.document))
             .order_by(QuestionRecord.created_at.desc())
         ).all()
         return [self._summary(item) for item in records]
@@ -59,7 +60,7 @@ class QuestionBankService:
                 UserQuestionProgressRecord.review_due_at <= now,
                 or_(QuestionRecord.published.is_(True), QuestionRecord.owner_user_id == user_id),
             )
-            .options(selectinload(QuestionRecord.topics))
+            .options(selectinload(QuestionRecord.topics), selectinload(QuestionRecord.document))
             .order_by(UserQuestionProgressRecord.review_due_at, QuestionRecord.created_at)
         ).all()
         return [self._summary(item) for item in records]
@@ -68,7 +69,12 @@ class QuestionBankService:
         record = self._session.scalar(
             select(QuestionRecord)
             .where(QuestionRecord.slug == slug)
-            .options(selectinload(QuestionRecord.topics), selectinload(QuestionRecord.sources))
+            .options(
+                selectinload(QuestionRecord.topics),
+                selectinload(QuestionRecord.sources),
+                selectinload(QuestionRecord.evidence),
+                selectinload(QuestionRecord.document),
+            )
         )
         if not record:
             raise LookupError("找不到这道题目")
@@ -91,7 +97,14 @@ class QuestionBankService:
             ],
             content_markdown=record.content_markdown,
             editable=editable,
-            source_document_name=record.source_document_name,
+            evidence=[
+                QuestionEvidenceData(
+                    section_key=item.section_key,
+                    heading_path=list(item.heading_path),
+                    quote=item.quote,
+                )
+                for item in record.evidence
+            ],
         )
 
     def get_user_state(self, *, user_id: UUID, question_id: UUID) -> UserQuestionState:
@@ -201,4 +214,8 @@ class QuestionBankService:
             topics=[
                 TopicData(id=item.id, slug=item.slug, name=item.name) for item in record.topics
             ],
+            framework=record.framework,
+            source_document_id=record.source_document_id,
+            source_document_name=record.source_document_name,
+            source_document_version=record.document.version if record.document else None,
         )
