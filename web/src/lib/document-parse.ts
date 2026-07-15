@@ -1,6 +1,11 @@
 import type { components } from "./api-schema";
 import { z } from "zod";
-import type { InterviewRound, InterviewType, TargetLevel } from "./training-context";
+import {
+  INTERVIEW_TYPE_VALUES,
+  type InterviewRound,
+  type InterviewType,
+  type TargetLevel,
+} from "./training-context";
 
 export type ParsedDocument = components["schemas"]["ParsedDocumentResponse"];
 
@@ -19,7 +24,7 @@ export interface ReviewMaterial {
   company: string;
   level: "intern" | "campus" | "mid" | "senior";
   interviewRound: "first" | "second" | "final" | "manager";
-  interviewType: "comprehensive" | "project" | "technical" | "system_design" | "behavioral" | "weak_area";
+  interviewType: InterviewType;
   mode: "relaxed" | "normal" | "stress";
   duration: number;
   pressure: number;
@@ -56,7 +61,7 @@ const retrainingContextSchema: z.ZodType<RetrainingContext> = z.object({
   target_company: z.string().trim().max(100).optional(),
   target_level: z.enum(["intern", "campus", "mid", "senior"]).optional(),
   interview_round: z.enum(["first", "second", "final", "manager"]).optional(),
-  interview_type: z.enum(["comprehensive", "project", "technical", "system_design", "behavioral", "weak_area"]).optional(),
+  interview_type: z.enum(INTERVIEW_TYPE_VALUES).optional(),
   mode: z.enum(["relaxed", "normal", "stress"]).optional(),
   pressure_level: z.number().int().min(1).max(5).optional(),
   depth_level: z.number().int().min(1).max(5).optional(),
@@ -85,7 +90,7 @@ export const reviewMaterialSchema: z.ZodType<ReviewMaterial> = z.object({
   company: z.string().max(100).default(""),
   level: z.enum(["intern", "campus", "mid", "senior"]).default("campus"),
   interviewRound: z.enum(["first", "second", "final", "manager"]).default("first"),
-  interviewType: z.enum(["comprehensive", "project", "technical", "system_design", "behavioral", "weak_area"]).default("comprehensive"),
+  interviewType: z.enum(INTERVIEW_TYPE_VALUES).default("comprehensive"),
   mode: z.enum(["relaxed", "normal", "stress"]).default("normal"),
   duration: z.number().int().min(1).max(180).default(30),
   pressure: z.number().int().min(1).max(5).default(3),

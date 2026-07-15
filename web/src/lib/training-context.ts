@@ -6,6 +6,16 @@ export type TargetLevel = InterviewContextContract["target_level"];
 export type InterviewRound = InterviewContextContract["interview_round"];
 export type InterviewType = InterviewContextContract["interview_type"];
 
+export const INTERVIEW_TYPE_VALUES = [
+  "comprehensive",
+  "project",
+  "technical",
+  "system_design",
+  "coding",
+  "behavioral",
+  "weak_area",
+] as const satisfies readonly InterviewType[];
+
 export const LEVEL_OPTIONS: Array<{ value: TargetLevel; label: string }> = [
   { value: "intern", label: "实习" },
   { value: "campus", label: "校招 / 初级" },

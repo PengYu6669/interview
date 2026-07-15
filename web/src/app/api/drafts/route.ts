@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { API_BASE_URL, readJsonResponse, rejectCrossOrigin, sessionToken } from "@/lib/auth-server";
+import { INTERVIEW_TYPE_VALUES } from "@/lib/training-context";
 
-const schema = z.object({ resume_filename: z.string().max(255), resume_text: z.string().min(1).max(80_000), jd: z.string().max(30_000), target_role: z.string().min(1).max(150), target_company: z.string().max(100).default(""), target_level: z.enum(["intern", "campus", "mid", "senior"]).default("campus"), interview_round: z.enum(["first", "second", "final", "manager"]).default("first"), interview_type: z.enum(["comprehensive", "project", "technical", "system_design", "behavioral", "weak_area"]).default("comprehensive"), mode: z.enum(["relaxed", "normal", "stress"]), duration_minutes: z.number().int().min(1).max(180), pressure_level: z.number().int().min(1).max(5), depth_level: z.number().int().min(1).max(5), guidance_level: z.number().int().min(1).max(5), question_ids: z.array(z.string().uuid()).max(20).default([]), training_focus: z.string().max(500).default("") });
+const schema = z.object({ resume_filename: z.string().max(255), resume_text: z.string().min(1).max(80_000), jd: z.string().max(30_000), target_role: z.string().min(1).max(150), target_company: z.string().max(100).default(""), target_level: z.enum(["intern", "campus", "mid", "senior"]).default("campus"), interview_round: z.enum(["first", "second", "final", "manager"]).default("first"), interview_type: z.enum(INTERVIEW_TYPE_VALUES).default("comprehensive"), mode: z.enum(["relaxed", "normal", "stress"]), duration_minutes: z.number().int().min(1).max(180), pressure_level: z.number().int().min(1).max(5), depth_level: z.number().int().min(1).max(5), guidance_level: z.number().int().min(1).max(5), question_ids: z.array(z.string().uuid()).max(20).default([]), training_focus: z.string().max(500).default("") });
 
 export async function POST(request: NextRequest) {
   const rejected = rejectCrossOrigin(request);

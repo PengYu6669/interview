@@ -1,5 +1,6 @@
 import {
   INTERVIEW_TYPE_OPTIONS,
+  INTERVIEW_TYPE_VALUES,
   InterviewRound,
   InterviewType,
   LEVEL_OPTIONS,
@@ -58,7 +59,7 @@ const setupStateSchema: z.ZodType<SetupState> = z.object({
   company: z.string().max(100),
   level: z.enum(["intern", "campus", "mid", "senior"]),
   interviewRound: z.enum(["first", "second", "final", "manager"]),
-  interviewType: z.enum(["comprehensive", "project", "technical", "system_design", "behavioral", "weak_area"]),
+  interviewType: z.enum(INTERVIEW_TYPE_VALUES),
   mode: z.enum(["relaxed", "normal", "stress"]),
   duration: z.number().int().min(1).max(180),
   pressure: z.number().int().min(1).max(5),
