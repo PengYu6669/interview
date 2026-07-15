@@ -1,0 +1,13 @@
+{
+  "version": "business-sense-rubric-v1",
+  "scale": {"min": 1, "max": 5},
+  "dimensions": [
+    {"key": "user_problem", "label": "用户问题", "question": "是否识别目标用户和真实问题"},
+    {"key": "business_goal", "label": "业务目标", "question": "是否明确业务结果而非只描述功能"},
+    {"key": "metrics", "label": "指标设计", "question": "是否包含核心指标、护栏指标和观察周期"},
+    {"key": "prioritization", "label": "方案优先级", "question": "是否根据价值、成本和依赖确定顺序"},
+    {"key": "economics", "label": "成本收益", "question": "是否考虑开发、推理、运营成本及预期收益"},
+    {"key": "risk", "label": "风险控制", "question": "是否识别体验、合规、数据和模型失败风险"},
+    {"key": "validation", "label": "验证复盘", "question": "是否设计灰度、实验、退出条件和复盘方法"}
+  ]
+}

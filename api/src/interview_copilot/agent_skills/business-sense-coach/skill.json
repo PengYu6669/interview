@@ -1,0 +1,9 @@
+{
+  "name": "business-sense-coach",
+  "version": "1.0.0",
+  "title": "业务 Sense 训练",
+  "description": "训练用户问题、业务目标、指标、优先级、成本收益、风险和验证复盘。",
+  "training_mode": "business_sense",
+  "instruction_file": "SKILL.md",
+  "rubric_file": "rubric.json"
+}

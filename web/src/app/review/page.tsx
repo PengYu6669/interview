@@ -1,0 +1,204 @@
+"use client";
+
+import { AlertTriangle, ArrowLeft, ArrowRight, FileCheck2, Sparkles } from "lucide-react";
+import Link from "next/link";
+import { useEffect, useState } from "react";
+
+import { PageIntro, PageShell, StatusBadge } from "@/components/page-shell";
+import {
+  ReviewMaterial,
+  REVIEW_MATERIAL_STORAGE_KEY,
+  reviewMaterialSchema,
+} from "@/lib/document-parse";
+import {
+  ResumeExtractionResult,
+  RESUME_EXTRACTION_STORAGE_KEY,
+  resumeExtractionCacheSchema,
+  resumeExtractionFingerprint,
+  resumeExtractionResultSchema,
+} from "@/lib/resume-extraction";
+import { useRouter } from "next/navigation";
+import { StructuredProfile } from "@/features/resume-review/structured-profile";
+import { InterviewFlowProgress } from "@/features/interview-flow/flow-progress";
+
+export default function ReviewPage() {
+  const router = useRouter();
+  const [material, setMaterial] = useState<ReviewMaterial | null>(null);
+  const [resumeText, setResumeText] = useState("");
+  const [loadError, setLoadError] = useState("");
+  const [extraction, setExtraction] = useState<ResumeExtractionResult | null>(null);
+  const [extracting, setExtracting] = useState(false);
+  const [extractionError, setExtractionError] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    const initialization = window.setTimeout(() => {
+      const raw = sessionStorage.getItem(REVIEW_MATERIAL_STORAGE_KEY);
+      if (!raw) {
+        setLoadError("没有找到已解析的材料，请先上传简历。");
+        return;
+      }
+      try {
+        const parsed = reviewMaterialSchema.parse(JSON.parse(raw));
+        setMaterial(parsed);
+        setResumeText(parsed.document.text);
+        const cachedRaw = sessionStorage.getItem(RESUME_EXTRACTION_STORAGE_KEY);
+        if (cachedRaw) {
+          void resumeExtractionFingerprint({ resumeText: parsed.document.text, jd: parsed.jd, targetRole: parsed.role }).then((fingerprint) => {
+            try {
+              const cached = resumeExtractionCacheSchema.parse(JSON.parse(cachedRaw));
+              if (cached.fingerprint === fingerprint) setExtraction(cached.result);
+            } catch {
+              sessionStorage.removeItem(RESUME_EXTRACTION_STORAGE_KEY);
+            }
+          });
+        }
+      } catch {
+        sessionStorage.removeItem(REVIEW_MATERIAL_STORAGE_KEY);
+        setLoadError("本次材料数据已失效，请重新上传。");
+      }
+    }, 0);
+    return () => window.clearTimeout(initialization);
+  }, []);
+
+  async function cacheExtraction(result: ResumeExtractionResult) {
+    if (!material) return;
+    const fingerprint = await resumeExtractionFingerprint({ resumeText, jd: material.jd, targetRole: material.role });
+    sessionStorage.setItem(RESUME_EXTRACTION_STORAGE_KEY, JSON.stringify({ fingerprint, result }));
+  }
+
+  async function createDraft(corrected: ReviewMaterial): Promise<string | null> {
+    const response = await fetch("/api/drafts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ resume_filename: corrected.document.filename, resume_text: corrected.document.text, jd: corrected.jd, target_role: corrected.role, target_company: corrected.company, target_level: corrected.level, interview_round: corrected.interviewRound, interview_type: corrected.interviewType, mode: corrected.mode, duration_minutes: corrected.duration, pressure_level: corrected.pressure, depth_level: corrected.depth, guidance_level: corrected.guidance, question_ids: corrected.questionIds, training_focus: corrected.trainingFocus }) });
+    if (response.status === 401) {
+      router.push("/login?next=/review");
+      return null;
+    }
+    const payload: unknown = await response.json();
+    if (!response.ok) throw new Error(typeof payload === "object" && payload && "detail" in payload ? String(payload.detail) : "训练草稿保存失败");
+    const id = typeof payload === "object" && payload && "id" in payload ? String(payload.id) : "";
+    if (!id) throw new Error("训练草稿返回了无效编号");
+    const savedMaterial = { ...corrected, draftId: id };
+    setMaterial(savedMaterial);
+    sessionStorage.setItem(REVIEW_MATERIAL_STORAGE_KEY, JSON.stringify(savedMaterial));
+    return id;
+  }
+
+  async function continueToBlueprint() {
+    if (!material || !extraction) return;
+    const validatedExtraction = resumeExtractionResultSchema.safeParse(extraction);
+    if (!validatedExtraction.success) {
+      setExtractionError("结构化结果存在空白或超长内容，请检查候选人摘要、技能和项目后再继续。");
+      return;
+    }
+    setSaving(true);
+    setExtractionError("");
+    const corrected = { ...material, document: { ...material.document, text: resumeText } };
+    sessionStorage.setItem(REVIEW_MATERIAL_STORAGE_KEY, JSON.stringify(corrected));
+    await cacheExtraction(extraction);
+    try {
+      let draftId = material.draftId;
+      if (!draftId) {
+        draftId = await createDraft(corrected) ?? undefined;
+        if (!draftId) return;
+      }
+      let updateResponse = await fetch(`/api/drafts/${draftId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ resume_text: resumeText, extraction: extraction.profile }) });
+      if (updateResponse.status === 404 || updateResponse.status === 409) {
+        draftId = await createDraft(corrected) ?? undefined;
+        if (!draftId) return;
+        updateResponse = await fetch(`/api/drafts/${draftId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ resume_text: resumeText, extraction: extraction.profile }) });
+      }
+      const updatePayload: unknown = await updateResponse.json();
+      if (!updateResponse.ok) throw new Error(typeof updatePayload === "object" && updatePayload && "detail" in updatePayload ? String(updatePayload.detail) : "结构化结果保存失败");
+      router.push("/blueprint");
+    } catch (error) {
+      setExtractionError(error instanceof Error ? error.message : "结构化结果保存失败");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function extractProfile() {
+    if (!material || !resumeText.trim()) return;
+    setExtracting(true);
+    setExtractionError("");
+    try {
+      const response = await fetch("/api/resumes/extract", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          resume_text: resumeText,
+          jd: material.jd,
+          target_role: material.role,
+        }),
+      });
+      const payload: unknown = await response.json();
+      if (!response.ok) {
+        const detail = typeof payload === "object" && payload !== null && "detail" in payload ? String(payload.detail) : "结构化提取失败";
+        throw new Error(detail);
+      }
+      const parsed = resumeExtractionResultSchema.parse(payload);
+      setExtraction(parsed);
+      await cacheExtraction(parsed);
+    } catch (error) {
+      setExtractionError(error instanceof Error ? error.message : "结构化提取失败");
+    } finally {
+      setExtracting(false);
+    }
+  }
+
+  return (
+    <PageShell active="new">
+      <main className="content-container review-page">
+        <PageIntro
+          eyebrow="步骤 2 / 3 · 材料校正"
+          title="确认简历文本是否完整"
+          description="这里展示解析器从文件中实际提取的内容。先修正乱码、断行或遗漏，再让 DeepSeek 提取带原文证据的技能与项目。"
+          actions={material ? <StatusBadge tone={material.document.warnings.length ? "warning" : "success"}><FileCheck2 size={13} />真实解析结果</StatusBadge> : undefined}
+        />
+        <InterviewFlowProgress current={2} />
+
+        {loadError ? (
+          <section className="flow-error-state" role="alert"><AlertTriangle size={22} /><div><h2>无法读取材料</h2><p>{loadError}</p></div><Link href="/setup" className="primary-cta"><ArrowLeft size={15} />返回准备材料</Link></section>
+        ) : material ? (
+          <div className="review-layout">
+            <aside className="source-preview">
+              <div className="panel-heading"><div><span>文件信息</span><small>{material.document.filename}</small></div></div>
+              <div className="resume-paper">
+                <h2>{material.role}</h2>
+                <h3>解析信息</h3>
+                <p>格式：{material.document.media_type}</p>
+                <p>页数：{material.document.page_count ?? "不适用"}</p>
+                <h3>岗位描述</h3>
+                <p>{material.jd}</p>
+                {material.document.warnings.map((warning) => <p key={warning} className="text-[var(--warning)]">注意：{warning}</p>)}
+              </div>
+            </aside>
+
+            <div className="review-fields">
+              <section className="review-block">
+                <div className="review-block-title"><div><h2>简历原文</h2><p>先修正文档解析问题，再进行 AI 结构化提取</p></div></div>
+                <div className="review-block-content">
+                  <label className="field-label" htmlFor="resume-text">提取文本</label>
+                  <textarea id="resume-text" className="answer-box" value={resumeText} onChange={(event) => { setResumeText(event.target.value); setExtraction(null); }} rows={18} />
+                  {!resumeText.trim() && <p className="text-xs text-[var(--danger)]" role="alert">没有可用文本。扫描版 PDF 需要 OCR，当前不能继续。</p>}
+                  {extractionError && <p className="text-xs text-[var(--danger)]" role="alert">{extractionError}</p>}
+                  <button className="primary-cta" type="button" disabled={!resumeText.trim() || extracting} onClick={extractProfile}><Sparkles size={15} />{extracting ? "DeepSeek 正在提取" : extraction ? "重新提取" : "开始结构化提取"}</button>
+                </div>
+              </section>
+              {extraction && <StructuredProfile result={extraction} onChange={setExtraction} />}
+            </div>
+          </div>
+        ) : (
+          <p className="text-sm text-[var(--muted)]">正在读取本次材料…</p>
+        )}
+
+        {material && (
+          <div className="sticky-action-bar">
+            <Link href="/setup" className="secondary-button"><ArrowLeft size={16} />返回修改材料</Link>
+            <div><span>{extraction ? "结构化结果已通过校验" : "完成结构化提取后才能继续"}</span><button type="button" disabled={!extraction || saving} onClick={() => void continueToBlueprint()} className="primary-cta">{saving ? "正在保存" : "保存校正并继续"} <ArrowRight size={16} /></button></div>
+          </div>
+        )}
+      </main>
+    </PageShell>
+  );
+}

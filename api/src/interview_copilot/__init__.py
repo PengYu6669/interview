@@ -1,0 +1,1 @@
+"""InterviewCopilot backend service."""

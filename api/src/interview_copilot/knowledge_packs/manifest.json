@@ -1,0 +1,65 @@
+[
+  {
+    "id": "ai-application-development",
+    "title": "AI 应用开发面试知识包",
+    "version": "1.0.0",
+    "updated_at": "2026-07-14",
+    "filename": "ai_application_development.md",
+    "sources": [
+      {
+        "title": "Tool Calls",
+        "publisher": "DeepSeek",
+        "url": "https://api-docs.deepseek.com/guides/tool_calls"
+      },
+      {
+        "title": "LangGraph overview",
+        "publisher": "LangChain",
+        "url": "https://docs.langchain.com/oss/python/langgraph/overview"
+      },
+      {
+        "title": "pgvector",
+        "publisher": "pgvector",
+        "url": "https://github.com/pgvector/pgvector"
+      },
+      {
+        "title": "Full Text Search",
+        "publisher": "PostgreSQL",
+        "url": "https://www.postgresql.org/docs/current/textsearch.html"
+      },
+      {
+        "title": "OWASP Top 10 for Large Language Model Applications",
+        "publisher": "OWASP",
+        "url": "https://owasp.org/www-project-top-10-for-large-language-model-applications/"
+      }
+    ]
+  },
+  {
+    "id": "ai-product-sense",
+    "title": "AI 产品 Sense 面试知识包",
+    "version": "1.0.0",
+    "updated_at": "2026-07-14",
+    "filename": "ai_product_sense.md",
+    "sources": [
+      {
+        "title": "Monitoring Distributed Systems",
+        "publisher": "Google SRE",
+        "url": "https://sre.google/sre-book/monitoring-distributed-systems/"
+      },
+      {
+        "title": "Cost Optimization Pillar",
+        "publisher": "AWS",
+        "url": "https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/welcome.html"
+      },
+      {
+        "title": "Experimentation Platform",
+        "publisher": "Microsoft Research",
+        "url": "https://www.microsoft.com/en-us/research/group/experimentation-platform-exp/"
+      },
+      {
+        "title": "OWASP Top 10 for Large Language Model Applications",
+        "publisher": "OWASP",
+        "url": "https://owasp.org/www-project-top-10-for-large-language-model-applications/"
+      }
+    ]
+  }
+]

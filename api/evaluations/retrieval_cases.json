@@ -1,0 +1,105 @@
+{
+  "version": "retrieval-eval-v2",
+  "minimum_recall_at_5": 0.9,
+  "minimum_mrr": 0.8,
+  "minimum_top_1_accuracy": 0.8,
+  "minimum_no_answer_accuracy": 1.0,
+  "cases": [
+    {
+      "id": "hybrid-retrieval",
+      "case_type": "positive",
+      "query": "中文 RAG 为什么要同时使用向量召回和关键词全文检索？",
+      "expected_title": "AI 应用开发面试知识包"
+    },
+    {
+      "id": "agent-boundary",
+      "case_type": "positive",
+      "query": "Agent 中哪些写操作不应该交给模型工具决定？",
+      "expected_title": "AI 应用开发面试知识包"
+    },
+    {
+      "id": "rag-evaluation",
+      "case_type": "positive",
+      "query": "引入 reranker 之前应该用什么指标评估检索效果？",
+      "expected_title": "AI 应用开发面试知识包"
+    },
+    {
+      "id": "tool-security",
+      "case_type": "positive",
+      "query": "Function Calling 如何防止模型伪造 user_id 和越权调用工具？",
+      "expected_title": "AI 应用开发面试知识包"
+    },
+    {
+      "id": "product-metric-tree",
+      "case_type": "positive",
+      "query": "AI 产品如何设计业务结果、用户价值和护栏指标？",
+      "expected_title": "AI 产品 Sense 面试知识包"
+    },
+    {
+      "id": "experiment-design",
+      "case_type": "positive",
+      "query": "A/B 实验除了主指标还要检查哪些风险？",
+      "expected_title": "AI 产品 Sense 面试知识包"
+    },
+    {
+      "id": "unit-economics",
+      "case_type": "positive",
+      "query": "AI 功能的单位经济性要计算哪些成本？",
+      "expected_title": "AI 产品 Sense 面试知识包"
+    },
+    {
+      "id": "product-prioritization",
+      "case_type": "positive",
+      "query": "产品方案优先级如何结合影响、信心、成本和风险做取舍？",
+      "expected_title": "AI 产品 Sense 面试知识包"
+    },
+    {
+      "id": "dirty-hybrid-query",
+      "case_type": "positive",
+      "query": "R A G 召回？？？ 向量   关键词 OCR 错字",
+      "expected_title": "AI 应用开发面试知识包"
+    },
+    {
+      "id": "agent-product-value-confusion",
+      "case_type": "confusing",
+      "query": "Agent Tool Calling 调用量能直接证明 AI 产品给用户创造价值吗？",
+      "expected_title": "AI 产品 Sense 面试知识包"
+    },
+    {
+      "id": "cost-model-confusion",
+      "case_type": "confusing",
+      "query": "模型成本太高时，产品方案应该怎样权衡缓存、上下文和便宜模型？",
+      "expected_title": "AI 产品 Sense 面试知识包"
+    },
+    {
+      "id": "rag-product-metric-confusion",
+      "case_type": "confusing",
+      "query": "RAG 的引用正确率如何与用户任务完成率一起评价？",
+      "expected_title": "AI 产品 Sense 面试知识包"
+    },
+    {
+      "id": "no-answer-cooking",
+      "case_type": "no_answer",
+      "query": "如何烤制法式可颂并控制黄油层次？",
+      "expected_title": null
+    },
+    {
+      "id": "no-answer-weather",
+      "case_type": "no_answer",
+      "query": "明天上海浦东会不会下雨？",
+      "expected_title": null
+    },
+    {
+      "id": "no-answer-law",
+      "case_type": "no_answer",
+      "query": "劳动合同解除需要支付多少经济补偿？",
+      "expected_title": null
+    },
+    {
+      "id": "no-answer-physics",
+      "case_type": "no_answer",
+      "query": "量子色动力学中的渐近自由如何证明？",
+      "expected_title": null
+    }
+  ]
+}

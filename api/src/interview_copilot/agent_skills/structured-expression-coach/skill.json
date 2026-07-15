@@ -1,0 +1,9 @@
+{
+  "name": "structured-expression-coach",
+  "version": "1.0.0",
+  "title": "结构化表达训练",
+  "description": "训练结论先行、责任边界、行动细节、方案取舍、量化结果和复盘表达。",
+  "training_mode": "structured_expression",
+  "instruction_file": "SKILL.md",
+  "rubric_file": "rubric.json"
+}

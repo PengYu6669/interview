@@ -1,0 +1,13 @@
+{
+  "version": "structured-expression-rubric-v1",
+  "scale": {"min": 1, "max": 5},
+  "dimensions": [
+    {"key": "conclusion", "label": "结论先行", "question": "是否先直接回答问题并给出核心判断"},
+    {"key": "context", "label": "背景控制", "question": "背景是否足以理解问题且没有喧宾夺主"},
+    {"key": "ownership", "label": "个人职责", "question": "是否区分个人贡献与团队结果"},
+    {"key": "actions", "label": "行动细节", "question": "是否说明具体做法、过程和关键决策"},
+    {"key": "tradeoffs", "label": "方案取舍", "question": "是否解释备选方案、约束和选择原因"},
+    {"key": "results", "label": "量化结果", "question": "是否提供可核验的结果、指标或影响"},
+    {"key": "reflection", "label": "复盘改进", "question": "是否说明不足和下一次会如何改进"}
+  ]
+}
