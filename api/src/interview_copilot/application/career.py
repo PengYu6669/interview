@@ -143,6 +143,7 @@ class CareerService:
                 "周一日期": week_start.isoformat(),
                 "求职画像": profile.model_dump(mode="json"),
                 "每周分钟预算": profile.weekly_hours * 60,
+                "本周训练配比": self._training_mix(profile.weekly_hours),
                 "可训练星期": profile.available_weekdays,
                 "偏好时段": profile.preferred_time_slot,
                 "候选题": [
@@ -334,8 +335,10 @@ class CareerService:
     ) -> list[WeeklyPlanItem]:
         option_map = {item.id: item for item in options}
         result: list[WeeklyPlanItem] = []
+        used_question_ids: set[UUID] = set()
         for position, item in enumerate(proposal.items):
-            option = option_map.get(item.question_id) if item.question_id else None
+            selected_question_id = item.question_id
+            option = option_map.get(selected_question_id) if selected_question_id else None
             if item.question_id and not option:
                 raise DeepSeekAgentError("规划结果引用了未授权题目")
             task_type = item.task_type
@@ -343,6 +346,29 @@ class CareerService:
             exercise_type = item.exercise_type
             difficulty = item.difficulty
             title = item.title
+            reason = item.reason
+            completion_criteria = item.completion_criteria
+            if selected_question_id and selected_question_id in used_question_ids:
+                option = next(
+                    (
+                        candidate
+                        for candidate in options
+                        if candidate.id not in used_question_ids
+                    ),
+                    None,
+                )
+                if option:
+                    selected_question_id = option.id
+                    reason = f"{reason} 已替换为另一道相关题，避免同一周重复安排。"
+                else:
+                    selected_question_id = None
+                    task_type = "structured_expression"
+                    coaching_mode = "structured_expression"
+                    exercise_type = "prep_pitch"
+                    difficulty = "guided"
+                    title = "复盘本周回答并提炼表达模板"
+                    reason = "可用题目不足，改为通用表达复盘，避免同一周重复安排同一道题。"
+                    completion_criteria = "选择本周一次回答，整理为 PREP 模板并完成一次 90 秒复述。"
             if option:
                 title = option.title
                 if task_type == "structured_expression":
@@ -357,6 +383,18 @@ class CareerService:
                             "star_story" if option.framework == "star" else "prep_pitch"
                         )
                         difficulty = difficulty or "guided"
+                used_question_ids.add(option.id)
+            if task_type == "question_review":
+                question_target = item.question_count or self._question_target(
+                    item.estimated_minutes
+                )
+                if not title.startswith("精练 "):
+                    title = f"精练 {question_target} 道 · {title}"[:200]
+                if "精练" not in completion_criteria:
+                    completion_criteria = (
+                        f"精练 {question_target} 道同主题题目，并完成口头复述；"
+                        f"{completion_criteria}"
+                    )[:500]
             result.append(
                 WeeklyPlanItem(
                     id=uuid4(),
@@ -365,11 +403,11 @@ class CareerService:
                     estimated_minutes=item.estimated_minutes,
                     task_type=task_type,  # type: ignore[arg-type]
                     title=title,
-                    reason=item.reason,
-                    completion_criteria=item.completion_criteria,
+                    reason=reason,
+                    completion_criteria=completion_criteria,
                     status="pending",
                     origin="ai",
-                    question_id=item.question_id,
+                    question_id=selected_question_id,
                     question_slug=option.slug if option else None,
                     coaching_mode=coaching_mode,  # type: ignore[arg-type]
                     exercise_type=exercise_type,
@@ -378,6 +416,28 @@ class CareerService:
                 )
             )
         return result
+
+    @staticmethod
+    def _training_mix(weekly_hours: int) -> dict[str, object]:
+        mock_count = 0 if weekly_hours < 3 else 1 if weekly_hours < 7 else 2
+        question_sessions = 1 if weekly_hours <= 2 else 2 if weekly_hours < 7 else 3
+        return {
+            "题目精练": (
+                f"安排 {question_sessions} 次，每次 2 至 3 道同主题题目，"
+                "每道只保留核心结论、关键追问和一次口头复述。"
+            ),
+            "结构化输出": "至少 1 次同题两答或 PREP/STAR 限时表达，必须有复盘标准。",
+            "模拟面试": (
+                "本周时间不足 3 小时时不安排完整模拟，改为限时追问；"
+                if mock_count == 0
+                else f"至少安排 {mock_count} 场，每场 45 至 90 分钟，含复盘。"
+            ),
+            "简历与投递": "合计不超过周时间的 15%，不能替代题目训练、表达训练或模拟面试。",
+        }
+
+    @staticmethod
+    def _question_target(estimated_minutes: int) -> int:
+        return 2 if estimated_minutes <= 45 else 3
 
     def _validate_items(
         self,

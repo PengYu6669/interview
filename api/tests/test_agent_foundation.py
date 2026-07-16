@@ -151,8 +151,8 @@ def test_skill_registry_progressively_loads_metadata_then_content() -> None:
     assert business.metadata.version == "2.0.0"
     assert business.rubric["version"] == "business-sense-rubric-v2"
     planning = registry.activate("career-planning-coach")
-    assert planning.metadata.version == "1.0.0"
-    assert planning.rubric["version"] == "career-planning-rubric-v1"
+    assert planning.metadata.version == "1.1.0"
+    assert planning.rubric["version"] == "career-planning-rubric-v1.1"
     assert "不是商业百科" in business.instructions
     assert len(business.instructions.splitlines()) <= 200
 

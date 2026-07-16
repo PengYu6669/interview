@@ -30,13 +30,13 @@ class FakePlanner:
             ActivatedSkill(
                 metadata=SkillMetadata(
                     name="career-planning-coach",
-                    version="1.0.0",
+                    version="1.1.0",
                     title="求职训练规划",
                     description="测试规划",
                     training_mode="career_planning",
                 ),
                 instructions="测试",
-                rubric={"version": "career-planning-rubric-v1"},
+                rubric={"version": "career-planning-rubric-v1.1"},
             ),
             CareerPlanAgentOutput(
                 goal="练清项目表达",
@@ -45,18 +45,28 @@ class FakePlanner:
                         day_index=0,
                         time_slot="evening",
                         estimated_minutes=20,
-                        task_type="structured_expression",
+                        task_type="question_review",
                         title="项目 STAR 重答",
                         reason="个人题库与目标岗位相关",
                         completion_criteria="完成两次回答，背景不超过两句话",
                         question_id=self.question_id,
-                        coaching_mode="structured_expression",
-                        exercise_type="star_story",
-                        difficulty="guided",
+                        question_count=2,
+                        coaching_mode=None,
+                        exercise_type=None,
+                        difficulty=None,
                     )
                 ],
             ),
         )
+
+
+class DuplicateQuestionPlanner(FakePlanner):
+    async def plan(self, **_: object) -> tuple[ActivatedSkill, CareerPlanAgentOutput]:
+        skill, output = await super().plan()
+        duplicate = output.items[0].model_copy(
+            update={"day_index": 2, "title": "同一题再次训练"}
+        )
+        return skill, output.model_copy(update={"items": [output.items[0], duplicate]})
 
 
 def _user(session: Session, name: str) -> UserRecord:
@@ -118,6 +128,8 @@ async def test_plan_draft_requires_confirmation_and_updates_owned_item() -> None
         )
         assert service.get(user_id=owner.id).weekly_plan is None
         assert draft.items[0].question_id == question.id
+        assert draft.items[0].title.startswith("精练 2 道")
+        assert draft.items[0].completion_criteria.startswith("精练 2 道")
 
         plan = service.save_weekly_plan(
             user_id=owner.id,
@@ -164,6 +176,29 @@ async def test_planner_rejects_unapproved_question_uuid() -> None:
             )
 
 
+@pytest.mark.asyncio
+async def test_planner_replaces_duplicate_question_with_general_review_when_needed() -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    with Session(engine, expire_on_commit=False) as session:
+        owner = _user(session, "duplicate-question-owner")
+        question = _question(session, owner)
+        service = CareerService(session, DuplicateQuestionPlanner(question.id))
+        service.save_profile(
+            user_id=owner.id,
+            profile=CareerProfile(target_role="后端开发", available_weekdays=[0, 2]),
+        )
+
+        draft = await service.create_draft(
+            user_id=owner.id,
+            request_id=uuid4(),
+            week_start=date(2026, 7, 13),
+        )
+
+        assert [item.question_id for item in draft.items] == [question.id, None]
+        assert draft.items[1].title == "复盘本周回答并提炼表达模板"
+
+
 def test_weekly_plan_requires_monday_before_persistence() -> None:
     engine = create_engine("sqlite+pysqlite:///:memory:")
     Base.metadata.create_all(engine)
@@ -185,3 +220,13 @@ def test_weekly_plan_requires_monday_before_persistence() -> None:
                 items=[item],
                 status="active",
             )
+
+
+def test_training_mix_scales_mock_interviews_and_question_sessions() -> None:
+    short = CareerService._training_mix(2)
+    full = CareerService._training_mix(8)
+
+    assert "安排 1 次" in str(short["题目精练"])
+    assert "不安排完整模拟" in str(short["模拟面试"])
+    assert "安排 3 次" in str(full["题目精练"])
+    assert "至少安排 2 场" in str(full["模拟面试"])

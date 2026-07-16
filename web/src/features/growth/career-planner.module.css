@@ -261,6 +261,60 @@
   font-size: 11px;
 }
 
+.generationPanel {
+  display: grid;
+  gap: 9px;
+  margin-top: 16px;
+  border: 1px solid #a9d8d3;
+  border-left: 4px solid var(--accent);
+  background: #f0faf8;
+  padding: 13px 14px;
+}
+
+.generationPanel > div {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--accent-dark);
+}
+
+.generationPanel span {
+  display: grid;
+  gap: 2px;
+}
+
+.generationPanel strong {
+  font-size: 13px;
+}
+
+.generationPanel small,
+.generationPanel p {
+  color: #4f706b;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.generationPanel i {
+  display: block;
+  height: 3px;
+  overflow: hidden;
+  background: #cfeae5;
+}
+
+.generationPanel i::after {
+  display: block;
+  width: 38%;
+  height: 100%;
+  background: var(--accent);
+  content: "";
+  animation: schedule-progress 1.15s ease-in-out infinite;
+}
+
+@keyframes schedule-progress {
+  0% { transform: translateX(-110%); }
+  100% { transform: translateX(365%); }
+}
+
 .planHint > span {
   display: inline-flex;
   align-items: center;

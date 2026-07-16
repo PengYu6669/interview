@@ -1,6 +1,6 @@
 {
   "name": "career-planning-coach",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "title": "求职训练规划",
   "description": "根据已确认求职画像、候选题库和训练证据生成一周内可执行、可验证的训练日程草稿。",
   "training_mode": "career_planning",

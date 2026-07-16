@@ -1,10 +1,11 @@
 {
-  "version": "career-planning-rubric-v1",
+  "version": "career-planning-rubric-v1.1",
   "invariants": [
     "source_uuid_allowlist",
     "weekly_time_budget",
     "available_weekdays_only",
     "maximum_two_items_per_day",
+    "question_review_volume",
     "actionable_completion_criteria",
     "no_automatic_persistence"
   ],

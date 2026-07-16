@@ -57,6 +57,10 @@ async def run_case(client: httpx.AsyncClient, case: dict[str, Any]) -> CaseResul
         counts[item["scheduled_date"]] = counts.get(item["scheduled_date"], 0) + 1
         if item["question_id"] and item["question_id"] not in allowed_questions:
             failures.append("任务引用了候选列表外的题目")
+        if item["task_type"] == "question_review" and not item["title"].startswith(
+            ("精练 2 道", "精练 3 道")
+        ):
+            failures.append("题目精练任务没有明确 2 至 3 道题的题量")
         if not item["reason"] or not item["completion_criteria"]:
             failures.append("任务缺少推荐原因或完成标准")
     if any(count > 2 for count in counts.values()):

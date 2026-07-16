@@ -56,6 +56,12 @@ function detail(payload: unknown, fallback: string) {
   return typeof payload === "object" && payload && "detail" in payload ? String(payload.detail) : fallback;
 }
 
+function weeklyMixSummary(hours: number) {
+  const questionSessions = hours <= 2 ? 1 : hours < 7 ? 2 : 3;
+  const mockInterviews = hours < 3 ? 0 : hours < 7 ? 1 : 2;
+  return `题目精练 ${questionSessions} 次（每次 2-3 道） · ${mockInterviews ? `模拟面试 ${mockInterviews} 场` : "限时追问 1 次"} · 结构化输出 1 次`;
+}
+
 type ProfileForm = {
   target_role: string;
   target_level: string;
@@ -80,6 +86,7 @@ export function CareerPlanner() {
   const [selectedDay, setSelectedDay] = useState(0);
   const [profileExpanded, setProfileExpanded] = useState(false);
   const [busy, setBusy] = useState<"profile" | "plan" | "generate" | "">("");
+  const [generationSeconds, setGenerationSeconds] = useState(0);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const generationInFlight = useRef(false);
@@ -111,6 +118,13 @@ export function CareerPlanner() {
     return () => { active = false; };
   }, []);
 
+  useEffect(() => {
+    if (busy !== "generate") return;
+    const startedAt = Date.now();
+    const timer = window.setInterval(() => setGenerationSeconds(Math.floor((Date.now() - startedAt) / 1000)), 1_000);
+    return () => window.clearInterval(timer);
+  }, [busy]);
+
   const days = useMemo(() => dayLabels.map((label, index) => ({ label, date: addDays(weekStart, index) })), [weekStart]);
   const itemsByDay = useMemo(() => days.map((day) => (plan?.items ?? []).filter((item) => item.scheduled_date === day.date).sort((a, b) => a.position - b.position)), [days, plan]);
   const today = localDate(new Date());
@@ -138,6 +152,7 @@ export function CareerPlanner() {
   async function generatePlan() {
     if (generationInFlight.current) return;
     generationInFlight.current = true;
+    setGenerationSeconds(0);
     setBusy("generate"); setError(""); setMessage("");
     try {
       const response = await fetch("/api/career/weekly-plan/draft", {
@@ -148,7 +163,7 @@ export function CareerPlanner() {
       const draft = weeklyPlanDraftSchema.parse(payload);
       setPlan(draft); setDraftId(draft.id); setSelectedDay(firstScheduledDay(draft.items, weekStart));
       setMessage("AI 面试教练已生成草稿，检查后确认保存");
-    } catch (cause) { setError(cause instanceof Error ? cause.message : "AI 训练日程生成失败"); } finally { generationInFlight.current = false; setBusy(""); }
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "AI 训练日程生成失败"); } finally { generationInFlight.current = false; setGenerationSeconds(0); setBusy(""); }
   }
 
   async function savePlan() {
@@ -268,6 +283,8 @@ export function CareerPlanner() {
     `${plan.basis.recent_training_count} 次近期训练`,
     plan.basis.evidence_focus,
   ].filter(Boolean).join(" · ") : "";
+  const generationLabel = generationSeconds < 8 ? "正在整理画像、训练证据和题库" : generationSeconds < 24 ? "正在匹配优先级并安排本周时间" : "正在编排可调整的训练草稿";
+  const trainingMixSummary = weeklyMixSummary(profile.weekly_hours);
 
   return <div className={styles.layout}>
     {confirmed && !profileExpanded ? <section className={styles.profileSummary}><div><span>已确认画像</span><strong>{profile.target_role}{profile.target_level ? ` · ${profile.target_level}` : ""}</strong><small>每周 {profile.weekly_hours} 小时 · {profile.available_weekdays.length} 个训练日 · 偏好{slotLabels[profile.preferred_time_slot]}</small></div><button className={styles.secondaryButton} type="button" onClick={() => setProfileExpanded(true)}><Pencil size={14} />编辑画像</button></section> : <form className={styles.profilePanel} onSubmit={saveProfile}>
@@ -287,11 +304,12 @@ export function CareerPlanner() {
     </form>}
 
     <section className={styles.scheduleSection}>
-      <header className={styles.scheduleHeader}><div><span>本周行动</span><h2>训练日程</h2><p>{weekStart} 开始的一周</p></div><div>{workspace?.plan_history.length ? <label className={styles.historySelect}><span>历史周次</span><select value={draftId ? "draft" : plan?.id ?? ""} onChange={(event) => { const selected = workspace.plan_history.find((item) => item.id === event.target.value); if (selected) { setPlan(selected); setDraftId(null); setWeekStart(selected.week_start); setSelectedDay(0); } }}><option value="draft" disabled={!draftId}>{draftId ? "当前草稿" : "选择周次"}</option>{workspace.plan_history.map((item) => <option value={item.id} key={item.id}>{item.week_start} · {item.status === "completed" ? "已完成" : "进行中"}</option>)}</select></label> : null}<button className={styles.secondaryButton} type="button" disabled={!confirmed || busy === "generate"} onClick={() => void generatePlan()}>{busy === "generate" ? <LoaderCircle className="spin" size={15} /> : <RefreshCw size={15} />}{plan ? "重新规划" : "AI 规划本周"}</button>{plan && <button className="primary-cta" type="button" disabled={busy === "plan"} onClick={() => void savePlan()}><Save size={15} />{draftId ? "确认日程" : "保存调整"}</button>}</div></header>
+      <header className={styles.scheduleHeader}><div><span>本周行动</span><h2>训练日程</h2><p>{weekStart} 开始的一周</p></div><div>{workspace?.plan_history.length ? <label className={styles.historySelect}><span>历史周次</span><select value={draftId ? "draft" : plan?.id ?? ""} onChange={(event) => { const selected = workspace.plan_history.find((item) => item.id === event.target.value); if (selected) { setPlan(selected); setDraftId(null); setWeekStart(selected.week_start); setSelectedDay(0); } }}><option value="draft" disabled={!draftId}>{draftId ? "当前草稿" : "选择周次"}</option>{workspace.plan_history.map((item) => <option value={item.id} key={item.id}>{item.week_start} · {item.status === "completed" ? "已完成" : "进行中"}</option>)}</select></label> : null}<button className={styles.secondaryButton} type="button" disabled={!confirmed || busy === "generate"} onClick={() => void generatePlan()}>{busy === "generate" ? <LoaderCircle className="spin" size={15} /> : <RefreshCw size={15} />}{plan ? "重新生成草稿" : "生成本周草稿"}</button>{plan && <button className="primary-cta" type="button" disabled={busy === "plan"} onClick={() => void savePlan()}><Save size={15} />{draftId ? "确认日程" : "保存调整"}</button>}</div></header>
+      {busy === "generate" && <section className={styles.generationPanel} aria-live="polite"><div><LoaderCircle className="spin" size={19} /><span><strong>AI 面试教练正在生成本周草稿</strong><small>{generationLabel} · 已等待 {generationSeconds} 秒</small></span></div><i aria-hidden="true" /><p>生成完成前请不要刷新或重复点击。</p></section>}
       {!confirmed && <div className={styles.empty}><Target size={20} /><strong>先确认求职画像</strong><p>岗位、每周时间和可训练星期是生成可执行日程的必要约束。</p></div>}
-      {confirmed && !plan && <div className={styles.empty}><Bot size={22} /><strong>让 AI 面试教练规划本周</strong><p>会结合个人题库、待复习题和最近训练证据生成草稿，确认后才保存。</p><button className="primary-cta" type="button" onClick={() => void generatePlan()}>生成训练日程 <ChevronRight size={15} /></button></div>}
+      {confirmed && !plan && busy !== "generate" && <div className={styles.empty}><Bot size={22} /><strong>生成本周训练草稿</strong><p>会结合个人题库、待复习题和最近训练证据生成草稿，确认后才保存。</p><button className="primary-cta" type="button" onClick={() => void generatePlan()}>生成本周草稿 <ChevronRight size={15} /></button></div>}
       {plan && <>
-        <div className={styles.planHint}><span><Bot size={14} />AI 面试教练已结合画像与题库规划<button className={styles.helpButton} type="button" aria-label={`规划依据：${planningBasisTip}`} data-tip={planningBasisTip}><CircleHelp size={14} /></button></span>{draftId && <b>待确认</b>}</div>
+        <div className={styles.planHint}><span><Bot size={14} />{trainingMixSummary}<button className={styles.helpButton} type="button" aria-label={`规划依据：${planningBasisTip}`} data-tip={planningBasisTip}><CircleHelp size={14} /></button></span>{draftId && <b>待确认</b>}</div>
         <label className={styles.weekGoal}><span>本周目标</span><input value={plan.goal} maxLength={500} onChange={(event) => setPlan({ ...plan, goal: event.target.value })} /></label>
         <nav className={styles.mobileDays} aria-label="选择日程日期">{days.map((day, index) => <button className={day.date === today ? styles.todayTab : undefined} type="button" aria-pressed={selectedDay === index} onClick={() => setSelectedDay(index)} key={day.date}><span>{day.label}</span><small>{day.date.slice(5)}</small><i>{itemsByDay[index].length}</i></button>)}</nav>
         <div className={styles.weekBoard}>{days.map((day, index) => <section className={`${styles.dayColumn} ${selectedDay === index ? styles.activeDay : ""} ${day.date === today ? styles.todayColumn : ""}`} key={day.date}><header><div><strong>{day.label}{day.date === today && <em>今天</em>}</strong><span>{day.date.slice(5)}</span></div><small>{itemsByDay[index].reduce((total, item) => total + item.estimated_minutes, 0)} 分钟</small></header><div className={styles.dayItems}>{itemsByDay[index].map((item) => <PlanTask item={item} questions={workspace?.question_options ?? []} onUpdate={updateItem} onReplaceQuestion={replaceQuestion} onMove={() => moveToNextDay(item, profile.available_weekdays, weekStart, updateItem)} onStatus={(status) => void setItemStatus(item, status)} onStart={() => void startItem(item)} key={item.id} />)}{itemsByDay[index].length === 0 && <div className={`${styles.restDay} ${index === 6 ? styles.sundayRest : ""}`}><span>{index === 6 ? "休息" : "暂无安排"}</span><small>{index === 6 ? "给这一周留一点余量" : "保持留白，按实际进度调整"}</small></div>}</div></section>)}</div>
