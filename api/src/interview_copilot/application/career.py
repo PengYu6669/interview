@@ -122,10 +122,11 @@ class CareerService:
             raise RuntimeError("求职训练规划 Agent 尚未配置")
         profile = self._profile(profile_record)
         ability = AbilityProfileService(self._session).get(user_id=user_id)
-        evidence_focus = ability.coaching.next_focus or ability.next_training
+        evidence_focus_value = ability.coaching.next_focus or ability.next_training
+        evidence_focus = evidence_focus_value[:300] if evidence_focus_value else None
         options = self._question_options(
             user_id=user_id,
-            limit=20,
+            limit=12,
             target_role=profile.target_role,
             evidence_focus=evidence_focus,
         )
@@ -144,16 +145,27 @@ class CareerService:
                 "每周分钟预算": profile.weekly_hours * 60,
                 "可训练星期": profile.available_weekdays,
                 "偏好时段": profile.preferred_time_slot,
-                "候选题": [item.model_dump(mode="json") for item in options],
+                "候选题": [
+                    {
+                        "id": str(item.id),
+                        "title": item.title,
+                        "difficulty": item.difficulty,
+                        "framework": item.framework,
+                        "topics": item.topics[:4],
+                        "review_due": item.review_due,
+                        "owned": item.owned,
+                    }
+                    for item in options
+                ],
                 "训练证据重点": basis.evidence_focus,
                 "专项能力": [
                     {
                         "维度": item.dimension,
                         "得分": item.score,
                         "可信度": item.confidence,
-                        "最近反馈": item.latest_feedback,
+                        "最近反馈": item.latest_feedback[:160],
                     }
-                    for item in ability.coaching.skills[:8]
+                    for item in ability.coaching.skills[:5]
                 ],
             },
             user_id=user_id,

@@ -35,6 +35,25 @@ class EchoOutput(BaseModel):
     value: str
 
 
+class EmptyThenValidClient(DeepSeekFunctionCallingClient):
+    def __init__(self) -> None:
+        registry = ToolRegistry([])
+        super().__init__(
+            api_key="test-key",
+            base_url="https://example.test",
+            model="test-model",
+            registry=registry,
+            executor=ToolExecutor(registry),
+        )
+        self.calls = 0
+
+    async def _chat(self, **_: object) -> dict[str, object]:
+        self.calls += 1
+        if self.calls == 1:
+            return {"content": ""}
+        return {"content": '{"value":"ok"}'}
+
+
 class EchoTool:
     name = "echo"
     description = "返回输入值"
@@ -45,6 +64,24 @@ class EchoTool:
         del context
         request = EchoInput.model_validate(arguments)
         return EchoOutput(value=request.value)
+
+
+@pytest.mark.asyncio
+async def test_agent_retries_one_empty_final_response() -> None:
+    client = EmptyThenValidClient()
+
+    output = await client.run_json(
+        instructions="测试",
+        user_data={"value": "untrusted"},
+        context=ToolContext(user_id=uuid4(), request_id=uuid4()),
+        allowed_tools=set(),
+        output_model=EchoOutput,
+        max_tool_calls=0,
+        max_output_tokens=500,
+    )
+
+    assert output.value == "ok"
+    assert client.calls == 2
 
 
 class CapturingAuditSink:

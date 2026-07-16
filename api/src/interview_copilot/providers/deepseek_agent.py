@@ -122,7 +122,20 @@ class DeepSeekFunctionCallingClient:
 
             content = message.get("content")
             if not isinstance(content, str) or not content.strip():
-                raise DeepSeekAgentError("DeepSeek Agent 返回了空结果")
+                if finalization_requested:
+                    raise DeepSeekAgentError("DeepSeek Agent 连续返回空结果")
+                messages.append(
+                    {
+                        "role": "user",
+                        "content": (
+                            "上一轮没有返回最终内容。请停止展开分析，"
+                            "直接返回简洁且符合 JSON Schema 的 JSON。"
+                        ),
+                    }
+                )
+                tool_definitions = []
+                finalization_requested = True
+                continue
             try:
                 return output_model.model_validate_json(content)
             except ValidationError as exc:

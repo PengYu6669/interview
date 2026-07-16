@@ -79,7 +79,7 @@ def career_planning_service(
         model=settings.deepseek_model,
         registry=registry,
         executor=ToolExecutor(registry),
-        prompt_version="career-planning-agent-v1",
+        prompt_version="career-planning-agent-v1.1",
     )
     return CareerService(session, CareerPlanningAgent(SkillRegistry(), client))
 
