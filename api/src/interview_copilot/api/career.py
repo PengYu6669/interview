@@ -1,8 +1,8 @@
 from datetime import date
 from typing import Annotated, Literal
-from uuid import UUID, uuid4
+from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Response
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.orm import Session
 
@@ -11,6 +11,7 @@ from interview_copilot.application.agent.career_planner import CareerPlanningAge
 from interview_copilot.application.agent.skills import SkillRegistry, SkillRegistryError
 from interview_copilot.application.agent.tools import ToolExecutor, ToolRegistry
 from interview_copilot.application.career import CareerService
+from interview_copilot.application.jobs import AiJobService
 from interview_copilot.config import get_settings
 from interview_copilot.domain.auth import UserProfile
 from interview_copilot.domain.career import (
@@ -20,7 +21,9 @@ from interview_copilot.domain.career import (
     WeeklyPlanDraft,
     WeeklyPlanItem,
 )
-from interview_copilot.infrastructure.database import get_database_session
+from interview_copilot.domain.jobs import AiJobStatus
+from interview_copilot.infrastructure.database import SessionFactory, get_database_session
+from interview_copilot.infrastructure.jobs import AiJobRecord
 from interview_copilot.providers.deepseek_agent import (
     DeepSeekAgentError,
     DeepSeekFunctionCallingClient,
@@ -72,6 +75,10 @@ class WeeklyPlanItemStatusRequest(BaseModel):
 def career_planning_service(
     session: Annotated[Session, Depends(get_database_session)],
 ) -> CareerService:
+    return _career_planning_service(session)
+
+
+def _career_planning_service(session: Session) -> CareerService:
     registry = ToolRegistry([])
     client = DeepSeekFunctionCallingClient(
         api_key=settings.deepseek_api_key,
@@ -123,20 +130,89 @@ def delete_career_profile(
     return Response(status_code=204)
 
 
-@router.post("/weekly-plan/draft", response_model=WeeklyPlanDraft, status_code=201)
+@router.post("/weekly-plan/draft", response_model=AiJobStatus, status_code=202)
 async def generate_weekly_plan_draft(
     request: WeeklyPlanDraftRequest,
+    background_tasks: BackgroundTasks,
     user: Annotated[UserProfile, Depends(require_current_user)],
-    service: Annotated[CareerService, Depends(career_planning_service)],
-) -> WeeklyPlanDraft:
+    session: Annotated[Session, Depends(get_database_session)],
+) -> AiJobStatus:
     try:
-        return await service.create_draft(
-            user_id=user.id, request_id=uuid4(), week_start=request.week_start
+        if request.week_start.weekday() != 0:
+            raise ValueError("周计划开始日期必须是周一")
+        job, created = AiJobService(session).create(
+            user_id=user.id,
+            kind="career_plan",
+            stage="等待读取求职画像",
+            estimated_seconds=60,
         )
+        if created:
+            background_tasks.add_task(
+                _run_career_plan,
+                job.id,
+                user.id,
+                request.week_start,
+            )
+        return job
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    except (DeepSeekAgentError, SkillRegistryError, RuntimeError) as exc:
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+async def _run_career_plan(job_id: UUID, user_id: UUID, week_start: date) -> None:
+    with SessionFactory() as session:
+        if not session.get(AiJobRecord, job_id):
+            return
+        try:
+            _update_career_job(job_id, stage="正在读取画像与训练证据", progress=10)
+
+            def progress(stage: str, value: int) -> None:
+                _update_career_job(job_id, stage=stage, progress=value)
+
+            draft = await _career_planning_service(session).create_draft(
+                user_id=user_id,
+                request_id=job_id,
+                week_start=week_start,
+                progress=progress,
+            )
+            _complete_career_job(job_id, resource_id=draft.id)
+        except (DeepSeekAgentError, SkillRegistryError, RuntimeError, ValueError) as exc:
+            session.rollback()
+            _fail_career_job(job_id, str(exc))
+
+
+def _update_career_job(job_id: UUID, *, stage: str, progress: int) -> None:
+    with SessionFactory() as job_session:
+        record = job_session.get(AiJobRecord, job_id)
+        if record:
+            AiJobService(job_session).update(record, stage=stage, progress=progress)
+
+
+def _complete_career_job(job_id: UUID, *, resource_id: UUID) -> None:
+    with SessionFactory() as job_session:
+        record = job_session.get(AiJobRecord, job_id)
+        if record:
+            AiJobService(job_session).complete(record, resource_id=resource_id)
+
+
+def _fail_career_job(job_id: UUID, error: str) -> None:
+    with SessionFactory() as job_session:
+        record = job_session.get(AiJobRecord, job_id)
+        if record:
+            AiJobService(job_session).fail(record, error)
+
+
+@router.get("/weekly-plan/draft/{draft_id}", response_model=WeeklyPlanDraft)
+def get_weekly_plan_draft(
+    draft_id: UUID,
+    user: Annotated[UserProfile, Depends(require_current_user)],
+    session: Annotated[Session, Depends(get_database_session)],
+) -> WeeklyPlanDraft:
+    try:
+        return CareerService(session).get_draft(user_id=user.id, draft_id=draft_id)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 @router.put("/weekly-plan", response_model=WeeklyPlan)

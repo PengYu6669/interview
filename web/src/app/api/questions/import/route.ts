@@ -12,7 +12,7 @@ export async function POST(request: NextRequest) {
       method: "POST",
       body: await request.formData(),
       headers: { Authorization: `Bearer ${token}` },
-      signal: AbortSignal.timeout(120_000),
+      signal: AbortSignal.timeout(30_000),
     });
     return NextResponse.json(await readJsonResponse(response), { status: response.status });
   } catch (error) {

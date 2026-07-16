@@ -19,6 +19,7 @@ from .api.coaching import router as coaching_router
 from .api.coding import router as coding_router
 from .api.drafts import router as drafts_router
 from .api.interviews import router as interviews_router
+from .api.jobs import router as jobs_router
 from .api.profile import router as profile_router
 from .api.questions import router as questions_router
 from .api.reports import router as reports_router
@@ -54,6 +55,7 @@ app.include_router(career_router)
 app.include_router(drafts_router)
 app.include_router(reports_router)
 app.include_router(interviews_router)
+app.include_router(jobs_router)
 app.include_router(profile_router)
 app.include_router(questions_router)
 app.add_middleware(

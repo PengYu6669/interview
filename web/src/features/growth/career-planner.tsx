@@ -17,6 +17,7 @@ import {
   type WeeklyPlanItem,
 } from "@/lib/career";
 import { QUESTION_COACHING_SELECTION_KEY } from "@/lib/questions";
+import { aiJobStatusSchema, remainingSeconds, type AiJobStatus } from "@/lib/ai-jobs";
 
 import styles from "./career-planner.module.css";
 
@@ -87,6 +88,7 @@ export function CareerPlanner() {
   const [profileExpanded, setProfileExpanded] = useState(false);
   const [busy, setBusy] = useState<"profile" | "plan" | "generate" | "">("");
   const [generationSeconds, setGenerationSeconds] = useState(0);
+  const [generationJob, setGenerationJob] = useState<AiJobStatus | null>(null);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const generationInFlight = useRef(false);
@@ -119,11 +121,53 @@ export function CareerPlanner() {
   }, []);
 
   useEffect(() => {
+    let active = true;
+    void fetch("/api/jobs/latest?kind=career_plan", { cache: "no-store" }).then(async (response) => {
+      if (!response.ok) return;
+      const payload: unknown = await response.json();
+      if (!payload || !active) return;
+      const job = aiJobStatusSchema.parse(payload);
+      setGenerationJob(job);
+      if (job.status === "queued" || job.status === "processing") setBusy("generate");
+    }).catch(() => undefined);
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
+    if (!generationJob || !["queued", "processing"].includes(generationJob.status)) return;
+    let active = true;
+    const poll = window.setInterval(() => {
+      void fetch(`/api/jobs/${generationJob.id}`, { cache: "no-store" }).then(async (response) => {
+        const payload: unknown = await response.json();
+        if (!response.ok) throw new Error(detail(payload, "规划任务状态读取失败"));
+        const job = aiJobStatusSchema.parse(payload);
+        if (!active) return;
+        setGenerationJob(job);
+        if (job.status === "completed" && job.resource_id) {
+          const draftResponse = await fetch(`/api/career/weekly-plan/draft/${job.resource_id}`, { cache: "no-store" });
+          const draftPayload: unknown = await draftResponse.json();
+          if (!draftResponse.ok) throw new Error(detail(draftPayload, "规划草稿读取失败"));
+          const draft = weeklyPlanDraftSchema.parse(draftPayload);
+          setPlan(draft); setDraftId(draft.id); setSelectedDay(firstScheduledDay(draft.items, weekStart));
+          setMessage("AI 面试教练已生成草稿，检查后确认保存"); setBusy(""); generationInFlight.current = false;
+        } else if (job.status === "failed") {
+          setError(job.error ?? "AI 面试教练生成草稿失败"); setBusy(""); generationInFlight.current = false;
+        }
+      }).catch((cause) => { if (active) setError(cause instanceof Error ? cause.message : "规划任务状态读取失败"); });
+    }, 2_000);
+    return () => { active = false; window.clearInterval(poll); };
+  }, [generationJob, weekStart]);
+
+  const generationCreatedAt = generationJob?.created_at;
+
+  useEffect(() => {
     if (busy !== "generate") return;
-    const startedAt = Date.now();
+    const startedAt = generationCreatedAt
+      ? new Date(generationCreatedAt).getTime()
+      : Date.now();
     const timer = window.setInterval(() => setGenerationSeconds(Math.floor((Date.now() - startedAt) / 1000)), 1_000);
     return () => window.clearInterval(timer);
-  }, [busy]);
+  }, [busy, generationCreatedAt]);
 
   const days = useMemo(() => dayLabels.map((label, index) => ({ label, date: addDays(weekStart, index) })), [weekStart]);
   const itemsByDay = useMemo(() => days.map((day) => (plan?.items ?? []).filter((item) => item.scheduled_date === day.date).sort((a, b) => a.position - b.position)), [days, plan]);
@@ -160,10 +204,10 @@ export function CareerPlanner() {
       });
       const payload: unknown = await response.json();
       if (!response.ok) throw new Error(detail(payload, "AI 训练日程生成失败"));
-      const draft = weeklyPlanDraftSchema.parse(payload);
-      setPlan(draft); setDraftId(draft.id); setSelectedDay(firstScheduledDay(draft.items, weekStart));
-      setMessage("AI 面试教练已生成草稿，检查后确认保存");
-    } catch (cause) { setError(cause instanceof Error ? cause.message : "AI 训练日程生成失败"); } finally { generationInFlight.current = false; setGenerationSeconds(0); setBusy(""); }
+      const job = aiJobStatusSchema.parse(payload);
+      setGenerationJob(job);
+      setMessage("草稿已转入后台生成，可以离开当前页面");
+    } catch (cause) { generationInFlight.current = false; setGenerationSeconds(0); setBusy(""); setError(cause instanceof Error ? cause.message : "AI 训练日程生成失败"); }
   }
 
   async function savePlan() {
@@ -283,7 +327,8 @@ export function CareerPlanner() {
     `${plan.basis.recent_training_count} 次近期训练`,
     plan.basis.evidence_focus,
   ].filter(Boolean).join(" · ") : "";
-  const generationLabel = generationSeconds < 8 ? "正在整理画像、训练证据和题库" : generationSeconds < 24 ? "正在匹配优先级并安排本周时间" : "正在编排可调整的训练草稿";
+  const generationLabel = generationJob?.stage ?? "正在创建后台任务";
+  const generationRemaining = generationJob ? remainingSeconds(generationJob, generationSeconds) : 60;
   const trainingMixSummary = weeklyMixSummary(profile.weekly_hours);
 
   return <div className={styles.layout}>
@@ -305,7 +350,7 @@ export function CareerPlanner() {
 
     <section className={styles.scheduleSection}>
       <header className={styles.scheduleHeader}><div><span>本周行动</span><h2>训练日程</h2><p>{weekStart} 开始的一周</p></div><div>{workspace?.plan_history.length ? <label className={styles.historySelect}><span>历史周次</span><select value={draftId ? "draft" : plan?.id ?? ""} onChange={(event) => { const selected = workspace.plan_history.find((item) => item.id === event.target.value); if (selected) { setPlan(selected); setDraftId(null); setWeekStart(selected.week_start); setSelectedDay(0); } }}><option value="draft" disabled={!draftId}>{draftId ? "当前草稿" : "选择周次"}</option>{workspace.plan_history.map((item) => <option value={item.id} key={item.id}>{item.week_start} · {item.status === "completed" ? "已完成" : "进行中"}</option>)}</select></label> : null}<button className={styles.secondaryButton} type="button" disabled={!confirmed || busy === "generate"} onClick={() => void generatePlan()}>{busy === "generate" ? <LoaderCircle className="spin" size={15} /> : <RefreshCw size={15} />}{plan ? "重新生成草稿" : "生成本周草稿"}</button>{plan && <button className="primary-cta" type="button" disabled={busy === "plan"} onClick={() => void savePlan()}><Save size={15} />{draftId ? "确认日程" : "保存调整"}</button>}</div></header>
-      {busy === "generate" && <section className={styles.generationPanel} aria-live="polite"><div><LoaderCircle className="spin" size={19} /><span><strong>AI 面试教练正在生成本周草稿</strong><small>{generationLabel} · 已等待 {generationSeconds} 秒</small></span></div><i aria-hidden="true" /><p>生成完成前请不要刷新或重复点击。</p></section>}
+      {busy === "generate" && <section className={styles.generationPanel} aria-live="polite"><div><LoaderCircle className="spin" size={19} /><span><strong>AI 面试教练正在后台生成本周草稿</strong><small>{generationLabel} · 已等待 {generationSeconds} 秒 · 预计还需约 {generationRemaining} 秒</small></span></div><i aria-hidden="true" style={{ "--job-progress": `${generationJob?.progress ?? 4}%` } as React.CSSProperties} /><p>可以离开当前页面，回来后会继续显示任务状态。</p></section>}
       {!confirmed && <div className={styles.empty}><Target size={20} /><strong>先确认求职画像</strong><p>岗位、每周时间和可训练星期是生成可执行日程的必要约束。</p></div>}
       {confirmed && !plan && busy !== "generate" && <div className={styles.empty}><Bot size={22} /><strong>生成本周训练草稿</strong><p>会结合个人题库、待复习题和最近训练证据生成草稿，确认后才保存。</p><button className="primary-cta" type="button" onClick={() => void generatePlan()}>生成本周草稿 <ChevronRight size={15} /></button></div>}
       {plan && <>

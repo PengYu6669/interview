@@ -1,4 +1,5 @@
 from collections import Counter
+from collections.abc import Callable
 from datetime import UTC, date, datetime, timedelta
 from typing import Protocol
 from uuid import UUID, uuid4
@@ -111,7 +112,12 @@ class CareerService:
         self._session.commit()
 
     async def create_draft(
-        self, *, user_id: UUID, request_id: UUID, week_start: date
+        self,
+        *,
+        user_id: UUID,
+        request_id: UUID,
+        week_start: date,
+        progress: Callable[[str, int], None] | None = None,
     ) -> WeeklyPlanDraft:
         if week_start.weekday() != 0:
             raise ValueError("周计划开始日期必须是周一")
@@ -121,6 +127,8 @@ class CareerService:
         if not self._planner:
             raise RuntimeError("求职训练规划 Agent 尚未配置")
         profile = self._profile(profile_record)
+        if progress:
+            progress("正在读取画像与训练证据", 18)
         ability = AbilityProfileService(self._session).get(user_id=user_id)
         evidence_focus_value = ability.coaching.next_focus or ability.next_training
         evidence_focus = evidence_focus_value[:300] if evidence_focus_value else None
@@ -138,6 +146,8 @@ class CareerService:
             recent_training_count=ability.coaching.completed_count + ability.report_count,
             evidence_focus=evidence_focus,
         )
+        if progress:
+            progress("正在匹配题库与训练优先级", 36)
         skill, proposal = await self._planner.plan(
             user_data={
                 "周一日期": week_start.isoformat(),
@@ -172,6 +182,8 @@ class CareerService:
             user_id=user_id,
             request_id=request_id,
         )
+        if progress:
+            progress("正在校验训练配比与时间预算", 82)
         items = self._proposal_items(
             proposal=proposal,
             week_start=week_start,
@@ -215,8 +227,23 @@ class CareerService:
                 expires_at=expires_at,
             )
         )
+        if progress:
+            progress("正在保存可编辑草稿", 94)
         self._session.commit()
         return draft
+
+    def get_draft(self, *, user_id: UUID, draft_id: UUID) -> WeeklyPlanDraft:
+        record = self._session.scalar(
+            select(CareerPlanDraftRecord).where(
+                CareerPlanDraftRecord.id == draft_id,
+                CareerPlanDraftRecord.user_id == user_id,
+            )
+        )
+        if not record:
+            raise LookupError("找不到这份规划草稿")
+        if self._is_expired(record.expires_at, datetime.now(UTC)):
+            raise ValueError("AI 规划草稿已过期，请重新生成")
+        return WeeklyPlanDraft.model_validate(record.payload)
 
     def save_weekly_plan(
         self,

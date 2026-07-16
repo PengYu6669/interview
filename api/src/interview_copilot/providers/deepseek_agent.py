@@ -176,6 +176,7 @@ class DeepSeekFunctionCallingClient:
             "messages": messages,
             "temperature": 0,
             "max_tokens": max_output_tokens,
+            "thinking": {"type": "disabled"},
         }
         if tools:
             payload["tools"] = tools

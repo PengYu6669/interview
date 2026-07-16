@@ -1,12 +1,13 @@
 from typing import Annotated, Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Query, UploadFile
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from interview_copilot.api.auth import optional_current_user, require_current_user
 from interview_copilot.application.document_processing import process_document
+from interview_copilot.application.jobs import AiJobService
 from interview_copilot.application.question_workflows import QuestionWorkflowService
 from interview_copilot.application.questions import QuestionBankService
 from interview_copilot.application.retrieval.indexing import RagIndexingService
@@ -18,6 +19,7 @@ from interview_copilot.document_parser import (
     UnsupportedDocumentError,
 )
 from interview_copilot.domain.auth import UserProfile
+from interview_copilot.domain.jobs import AiJobStatus
 from interview_copilot.domain.questions import (
     QuestionChatAnswer,
     QuestionChatHistory,
@@ -27,7 +29,8 @@ from interview_copilot.domain.questions import (
     QuestionSummary,
     UserQuestionState,
 )
-from interview_copilot.infrastructure.database import get_database_session
+from interview_copilot.infrastructure.database import SessionFactory, get_database_session
+from interview_copilot.infrastructure.jobs import AiJobRecord
 from interview_copilot.infrastructure.rag_store import (
     PostgresRagSearchRepository,
     SqlAlchemyRagStore,
@@ -82,6 +85,25 @@ def workflow_service(
     )
 
 
+def _workflow(session: Session) -> QuestionWorkflowService:
+    embedding = DoubaoEmbeddingProvider(
+        api_key=settings.doubao_embedding_api_key,
+        endpoint=settings.doubao_embedding_endpoint,
+        model=settings.doubao_embedding_model,
+        dimensions=settings.doubao_embedding_dimensions,
+    )
+    return QuestionWorkflowService(
+        session,
+        deepseek=DeepSeekQuestionBankProvider(
+            api_key=settings.deepseek_api_key,
+            base_url=settings.deepseek_base_url,
+            model=settings.deepseek_model,
+        ),
+        rag_indexing=RagIndexingService(SqlAlchemyRagStore(session), embedding),
+        rag_search=RagSearchService(PostgresRagSearchRepository(session), embedding),
+    )
+
+
 def workflow_read_service(
     session: Annotated[Session, Depends(get_database_session)],
 ) -> QuestionWorkflowService:
@@ -113,55 +135,118 @@ def list_review_due(
     return bank.list_review_due(user_id=user.id)
 
 
-@router.post("/import", response_model=QuestionImportResult, status_code=201)
+@router.post("/import", response_model=AiJobStatus, status_code=202)
 async def import_questions(
     file: Annotated[UploadFile, File()],
+    background_tasks: BackgroundTasks,
     user: Annotated[UserProfile, Depends(require_current_user)],
-    workflow: Annotated[QuestionWorkflowService, Depends(workflow_service)],
-) -> QuestionImportResult:
+    session: Annotated[Session, Depends(get_database_session)],
+) -> AiJobStatus:
     content = await file.read(MAX_IMPORT_BYTES + 1)
     if len(content) > MAX_IMPORT_BYTES:
         raise HTTPException(status_code=413, detail="文档不能超过 20MB")
-    try:
-        ocr = None
-        if settings.baidu_ocr_access_token or (
-            settings.baidu_ocr_api_key and settings.baidu_ocr_secret_key
-        ):
-            ocr = BaiduOCR(
-                BaiduOCRConfig(
-                    api_key=settings.baidu_ocr_api_key,
-                    secret_key=settings.baidu_ocr_secret_key,
-                    access_token=settings.baidu_ocr_access_token,
-                )
-            )
-        try:
-            processed = await process_document(
-                filename=file.filename or "document",
-                content=content,
-                ocr=ocr,
-            )
-        finally:
-            if ocr:
-                await ocr.aclose()
-        parsed = processed.document
-        if not parsed.text.strip():
-            raise InvalidDocumentError("文档没有可提取的文字")
-        result = await workflow.import_document(
-            user_id=user.id,
-            filename=parsed.filename,
-            media_type=parsed.media_type,
-            text=parsed.text,
-            initial_warnings=processed.warnings,
+    estimated_seconds = min(240, 70 + max(0, len(content) // 200_000) * 15)
+    job, created = AiJobService(session).create(
+        user_id=user.id,
+        kind="question_import",
+        stage="等待解析资料",
+        estimated_seconds=estimated_seconds,
+    )
+    if created:
+        background_tasks.add_task(
+            _run_question_import,
+            job.id,
+            user.id,
+            file.filename or "document",
+            file.content_type or "application/octet-stream",
+            content,
         )
-        return result
-    except UnsupportedDocumentError as exc:
-        raise HTTPException(status_code=415, detail=str(exc)) from exc
-    except (ProtectedDocumentError, InvalidDocumentError, ValueError) as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-    except BaiduOCRError as exc:
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
-    except RuntimeError as exc:
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    return job
+
+
+async def _run_question_import(
+    job_id: UUID,
+    user_id: UUID,
+    filename: str,
+    media_type: str,
+    content: bytes,
+) -> None:
+    with SessionFactory() as session:
+        if not session.get(AiJobRecord, job_id):
+            return
+        try:
+            _update_job(job_id, stage="正在解析资料与识别文本", progress=8)
+            ocr = None
+            if settings.baidu_ocr_access_token or (
+                settings.baidu_ocr_api_key and settings.baidu_ocr_secret_key
+            ):
+                ocr = BaiduOCR(
+                    BaiduOCRConfig(
+                        api_key=settings.baidu_ocr_api_key,
+                        secret_key=settings.baidu_ocr_secret_key,
+                        access_token=settings.baidu_ocr_access_token,
+                    )
+                )
+            try:
+                processed = await process_document(
+                    filename=filename,
+                    content=content,
+                    ocr=ocr,
+                )
+            finally:
+                if ocr:
+                    await ocr.aclose()
+            parsed = processed.document
+            if not parsed.text.strip():
+                raise InvalidDocumentError("文档没有可提取的文字")
+
+            def progress(stage: str, value: int, resource_id: UUID | None) -> None:
+                _update_job(job_id, stage=stage, progress=value, resource_id=resource_id)
+
+            result = await _workflow(session).import_document(
+                user_id=user_id,
+                filename=parsed.filename,
+                media_type=parsed.media_type or media_type,
+                text=parsed.text,
+                initial_warnings=processed.warnings,
+                progress=progress,
+            )
+            _complete_job(job_id, resource_id=result.document.id)
+        except (
+            UnsupportedDocumentError,
+            ProtectedDocumentError,
+            InvalidDocumentError,
+            BaiduOCRError,
+            RuntimeError,
+            ValueError,
+        ) as exc:
+            session.rollback()
+            _fail_job(job_id, str(exc))
+
+
+def _update_job(
+    job_id: UUID, *, stage: str, progress: int, resource_id: UUID | None = None
+) -> None:
+    with SessionFactory() as job_session:
+        record = job_session.get(AiJobRecord, job_id)
+        if record:
+            AiJobService(job_session).update(
+                record, stage=stage, progress=progress, resource_id=resource_id
+            )
+
+
+def _complete_job(job_id: UUID, *, resource_id: UUID) -> None:
+    with SessionFactory() as job_session:
+        record = job_session.get(AiJobRecord, job_id)
+        if record:
+            AiJobService(job_session).complete(record, resource_id=resource_id)
+
+
+def _fail_job(job_id: UUID, error: str) -> None:
+    with SessionFactory() as job_session:
+        record = job_session.get(AiJobRecord, job_id)
+        if record:
+            AiJobService(job_session).fail(record, error)
 
 
 @router.get("/documents", response_model=list[QuestionDocumentSummary])

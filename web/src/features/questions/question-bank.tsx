@@ -3,9 +3,10 @@
 import { ArrowRight, BookOpen, Check, FileText, ListPlus, LoaderCircle, MessageSquareText, RefreshCw, Search, Sparkles, Trash2, Upload, X } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
+import { ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { QUESTION_COACHING_SELECTION_KEY, QUESTION_INTERVIEW_SELECTION_KEY, questionDocumentSchema, questionImportResultSchema, questionSummarySchema, type QuestionDocumentSummary, type QuestionSummary } from "@/lib/questions";
+import { aiJobStatusSchema, remainingSeconds, type AiJobStatus } from "@/lib/ai-jobs";
+import { QUESTION_COACHING_SELECTION_KEY, QUESTION_INTERVIEW_SELECTION_KEY, questionDocumentSchema, questionSummarySchema, type QuestionDocumentSummary, type QuestionSummary } from "@/lib/questions";
 
 type Scope = "public" | "mine" | "review";
 
@@ -41,13 +42,15 @@ export function QuestionBank() {
   const [importing, setImporting] = useState(false);
   const [importMessage, setImportMessage] = useState("");
   const [importLoginRequired, setImportLoginRequired] = useState(false);
+  const [importJob, setImportJob] = useState<AiJobStatus | null>(null);
+  const [importElapsed, setImportElapsed] = useState(0);
   const [loginRequired, setLoginRequired] = useState(false);
   const [selecting, setSelecting] = useState(false);
   const [selected, setSelected] = useState<Map<string, { title: string; framework: string }>>(new Map());
   const [documentAction, setDocumentAction] = useState<string>("");
   const inputRef = useRef<HTMLInputElement>(null);
 
-  async function load(nextScope = scope) {
+  const load = useCallback(async (nextScope: Scope = scope) => {
     setLoading(true);
     setError("");
     setLoginRequired(false);
@@ -69,7 +72,7 @@ export function QuestionBank() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [scope]);
 
   useEffect(() => {
     let active = true;
@@ -93,6 +96,41 @@ export function QuestionBank() {
     return () => { active = false; };
   }, [scope]);
 
+  useEffect(() => {
+    let active = true;
+    void fetch("/api/jobs/latest?kind=question_import", { cache: "no-store" }).then(async (response) => {
+      if (!response.ok) return;
+      const payload: unknown = await response.json();
+      if (!payload || !active) return;
+      const job = aiJobStatusSchema.parse(payload);
+      setImportJob(job);
+      setImportElapsed(Math.max(0, Math.round((new Date().getTime() - new Date(job.created_at).getTime()) / 1000)));
+      setImporting(job.status === "queued" || job.status === "processing");
+    }).catch(() => undefined);
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
+    if (!importJob || !["queued", "processing"].includes(importJob.status)) return;
+    let active = true;
+    const poll = window.setInterval(() => {
+      void fetch(`/api/jobs/${importJob.id}`, { cache: "no-store" }).then(async (response) => {
+        const payload: unknown = await response.json();
+        if (!response.ok) throw new QuestionRequestError(errorMessage(payload, "导入任务状态读取失败"), response.status);
+        const job = aiJobStatusSchema.parse(payload);
+        if (!active) return;
+        setImportJob(job);
+        setImportElapsed(Math.max(0, Math.round((new Date().getTime() - new Date(job.created_at).getTime()) / 1000)));
+        if (job.status === "completed") {
+          setImporting(false); setImportMessage("资料已完成解析、题目生成和索引，可以开始学习。"); setScope("mine"); await load("mine");
+        } else if (job.status === "failed") {
+          setImporting(false); setImportMessage(job.error ?? "资料导入失败");
+        }
+      }).catch((caught) => { if (active) setImportMessage(caught instanceof Error ? caught.message : "导入任务状态读取失败"); });
+    }, 2_000);
+    return () => { active = false; window.clearInterval(poll); };
+  }, [importJob, load]);
+
   function selectScope(nextScope: Scope) {
     if (nextScope === scope) return;
     setLoading(true);
@@ -113,22 +151,20 @@ export function QuestionBank() {
     if (!file) return;
     setImporting(true);
     setImportLoginRequired(false);
-    setImportMessage("正在解析文档、生成题目并建立检索索引，请不要关闭页面…");
+    setImportMessage("正在上传资料…");
     const form = new FormData();
     form.set("file", file);
     try {
       const response = await fetch("/api/questions/import", { method: "POST", body: form });
       const payload: unknown = await response.json();
       if (!response.ok) throw new QuestionRequestError(errorMessage(payload, "文档导入失败"), response.status);
-      const result = questionImportResultSchema.parse(payload);
-      setImportMessage(`已从「${file.name}」生成 ${result.questions.length} 道可编辑题目。`);
-      setScope("mine");
-      await load("mine");
+      const job = aiJobStatusSchema.parse(payload);
+      setImportJob(job); setImportElapsed(0); setImporting(true); setImportOpen(false);
+      setImportMessage(`「${file.name}」已转入后台处理，可以离开当前页面。`);
     } catch (caught) {
+      setImporting(false);
       setImportMessage(caught instanceof Error ? caught.message : "文档导入失败");
       setImportLoginRequired(caught instanceof QuestionRequestError && caught.status === 401);
-    } finally {
-      setImporting(false);
     }
   }
 
@@ -177,6 +213,16 @@ export function QuestionBank() {
       <button className="question-import-button" type="button" onClick={() => setImportOpen(true)}><Upload size={17} />导入资料</button>
     </header>
 
+    {importJob && <section className={`question-job-status ${importJob.status}`} aria-live="polite">
+      <div className="question-job-copy">
+        {importing ? <LoaderCircle className="spin" size={18} /> : importJob.status === "completed" ? <Check size={18} /> : <FileText size={18} />}
+        <span><strong>{importJob.status === "failed" ? "资料处理失败" : importJob.status === "completed" ? "个人题库已更新" : importJob.stage}</strong><small>{importJob.status === "queued" || importJob.status === "processing" ? `已等待 ${importElapsed} 秒 · 预计还需约 ${remainingSeconds(importJob, importElapsed)} 秒，可以关闭弹窗或离开页面` : importJob.error ?? importMessage}</small></span>
+      </div>
+      <b>{importJob.progress}%</b>
+      <i><span style={{ width: `${importJob.progress}%` }} /></i>
+      {importJob.status === "failed" && <button type="button" onClick={() => setImportOpen(true)}>重新导入</button>}
+    </section>}
+
     <section className="question-command-bar" aria-label="题库筛选">
       <div className="question-scope-tabs" role="tablist">
         <button className={scope === "public" ? "active" : ""} type="button" onClick={() => selectScope("public")} role="tab" aria-selected={scope === "public"}>公共题库</button>
@@ -206,6 +252,6 @@ export function QuestionBank() {
 
     {selecting && <div className="question-selection-bar"><div><strong>已选 {selected.size} 道题</strong><span>{selected.size === 1 ? "可直接进行 STAR / PREP 结构化重答" : selected.size ? "多题适合加入模拟面试；专项训练请选择 1 道" : "最多选择 20 道题"}</span></div><button className="secondary-action" type="button" disabled={selected.size !== 1} onClick={startCoachingFromSelection}><MessageSquareText size={15} />专项训练</button><button type="button" disabled={!selected.size} onClick={startFromSelection}>准备模拟面试 <ArrowRight size={15} /></button></div>}
 
-    {importOpen && <div className="question-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !importing) setImportOpen(false); }}><section className="question-import-dialog" role="dialog" aria-modal="true" aria-labelledby="import-title"><button className="dialog-close" type="button" onClick={() => setImportOpen(false)} disabled={importing} aria-label="关闭"><X size={18} /></button><div className="import-icon"><Sparkles size={22} /></div><h2 id="import-title">把资料变成学习题库</h2><p>支持 PDF、Word（.docx）、Markdown 和 TXT，单个文件不超过 20MB。扫描版 PDF 会自动进入百度 OCR，并保留校对提醒。</p><button className="import-dropzone" type="button" disabled={importing} onClick={() => inputRef.current?.click()}>{importing ? <LoaderCircle className="spin" size={24} /> : <Upload size={24} />}<strong>{importing ? "正在处理资料" : "选择一个文件"}</strong><span>内容只用于生成你的个人题目</span></button><input ref={inputRef} hidden type="file" accept=".pdf,.docx,.md,.txt" onChange={importFile} />{importMessage && <div className={`import-feedback ${importing ? "working" : ""}`}>{importMessage}</div>}{importLoginRequired && <Link className="primary-cta full-width" href="/login?next=/questions">登录后导入资料</Link>}</section></div>}
+    {importOpen && <div className="question-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setImportOpen(false); }}><section className="question-import-dialog" role="dialog" aria-modal="true" aria-labelledby="import-title"><button className="dialog-close" type="button" onClick={() => setImportOpen(false)} aria-label="关闭"><X size={18} /></button><div className="import-icon"><Sparkles size={22} /></div><h2 id="import-title">把资料变成学习题库</h2><p>支持 PDF、Word（.docx）、Markdown 和 TXT，单个文件不超过 20MB。扫描版 PDF 会自动进入百度 OCR，并保留校对提醒。</p><button className="import-dropzone" type="button" disabled={importing} onClick={() => inputRef.current?.click()}>{importing ? <LoaderCircle className="spin" size={24} /> : <Upload size={24} />}<strong>{importing ? "正在上传资料" : "选择一个文件"}</strong><span>{importing ? "上传后会转入后台，可随时关闭弹窗" : "内容只用于生成你的个人题目"}</span></button><input ref={inputRef} hidden type="file" accept=".pdf,.docx,.md,.txt" onChange={importFile} />{importMessage && <div className={`import-feedback ${importing ? "working" : ""}`}>{importMessage}</div>}{importLoginRequired && <Link className="primary-cta full-width" href="/login?next=/questions">登录后导入资料</Link>}</section></div>}
   </main>;
 }

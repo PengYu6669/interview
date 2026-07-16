@@ -1,3 +1,4 @@
+import json
 from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
@@ -407,6 +408,57 @@ def test_generated_questions_keep_only_exact_source_evidence() -> None:
 
     assert [item.title for item in result.questions] == ["有效证据"]
     assert "编造证据" in result.warnings[0]
+
+
+def test_generated_questions_accept_fenced_json_and_keep_valid_items() -> None:
+    valid = {
+        "title": "解释限流策略",
+        "prompt": "如何选择限流算法？",
+        "difficulty": "进阶",
+        "question_type": "取舍",
+        "framework": "prep",
+        "intent": "考察方案权衡",
+        "answer_outline": ["说明目标", "比较方案"],
+        "common_mistakes": ["忽略突发流量"],
+        "topics": ["限流"],
+        "evidence": [{"section_key": "section-0", "quote": "使用令牌桶限制流量"}],
+    }
+    payload = (
+        "```json\n"
+        f"{{\"questions\":[{json.dumps(valid, ensure_ascii=False)},"
+        "{\"title\":\"坏题\"}]}\n```"
+    )
+
+    generated, errors = DeepSeekQuestionBankProvider._parse_generated(payload)
+
+    assert generated is not None
+    assert [item.title for item in generated.questions] == ["解释限流策略"]
+    assert any("无效题目已跳过" in warning for warning in generated.warnings)
+    assert any("questions[1]" in error for error in errors)
+
+
+def test_generated_question_builds_learning_content_when_model_omits_it() -> None:
+    question = GeneratedQuestion(
+        title="解释限流策略",
+        prompt="如何选择限流算法？",
+        difficulty="进阶",
+        question_type="取舍",
+        framework="prep",
+        intent="考察方案权衡",
+        answer_outline=["说明目标", "比较方案"],
+        common_mistakes=["忽略突发流量"],
+        topics=["限流"],
+        evidence=[
+            GeneratedQuestionEvidence(
+                section_key="section-0", quote="使用令牌桶限制流量"
+            )
+        ],
+    )
+
+    normalized = DeepSeekQuestionBankProvider._with_content(question)
+
+    assert "### 回答框架" in normalized.content_markdown
+    assert "使用令牌桶限制流量" in normalized.content_markdown
 
 
 @pytest.mark.asyncio

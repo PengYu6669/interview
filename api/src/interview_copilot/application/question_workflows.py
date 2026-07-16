@@ -1,4 +1,5 @@
 import re
+from collections.abc import Callable
 from datetime import UTC, datetime
 from hashlib import sha256
 from uuid import UUID, uuid4
@@ -58,6 +59,7 @@ class QuestionWorkflowService:
         text: str,
         initial_warnings: list[str] | None = None,
         force_new_version: bool = False,
+        progress: Callable[[str, int, UUID | None], None] | None = None,
     ) -> QuestionImportResult:
         if len(text) > 200_000:
             raise ValueError("资料提取文本不能超过 20 万字符，请拆分后导入")
@@ -105,6 +107,8 @@ class QuestionWorkflowService:
         )
         self._session.add(document)
         self._session.flush()
+        if progress:
+            progress("正在建立资料索引", 25, document.id)
         if not self._rag_indexing:
             raise RuntimeError("题库 RAG 索引服务尚未配置")
         await self._rag_indexing.index(
@@ -130,13 +134,23 @@ class QuestionWorkflowService:
             )
             for chunk in chunks
         ]
+        if progress:
+            progress("正在分析资料结构", 38, document.id)
         generated_batches = []
         for offset in range(0, len(sections), 4):
             batch = sections[offset : offset + 4]
+            if progress:
+                batch_number = offset // 4 + 1
+                batch_count = max(1, (len(sections) + 3) // 4)
+                progress(
+                    f"正在生成第 {batch_number}/{batch_count} 批题目",
+                    40 + round(42 * batch_number / batch_count),
+                    document.id,
+                )
             generated_batches.append(
                 await provider.generate_questions(
                     batch,
-                    desired_questions=min(8, max(2, len(batch) * 2)),
+                    desired_questions=min(4, max(2, len(batch))),
                 )
             )
         section_map = {item.key: item for item in sections}
@@ -219,6 +233,8 @@ class QuestionWorkflowService:
             ),
         ]
         document.updated_at = datetime.now(UTC)
+        if progress:
+            progress("正在保存题目与原文证据", 92, document.id)
         self._session.commit()
         self._session.refresh(document)
         return QuestionImportResult(

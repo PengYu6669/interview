@@ -303,16 +303,11 @@
 
 .generationPanel i::after {
   display: block;
-  width: 38%;
+  width: var(--job-progress, 4%);
   height: 100%;
   background: var(--accent);
   content: "";
-  animation: schedule-progress 1.15s ease-in-out infinite;
-}
-
-@keyframes schedule-progress {
-  0% { transform: translateX(-110%); }
-  100% { transform: translateX(365%); }
+  transition: width 320ms ease;
 }
 
 .planHint > span {
