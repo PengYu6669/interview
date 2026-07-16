@@ -1,13 +1,62 @@
 from datetime import UTC, date, datetime
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
+from interview_copilot.application.agent.career_planner import (
+    CareerPlanAgentItem,
+    CareerPlanAgentOutput,
+)
+from interview_copilot.application.agent.skills import ActivatedSkill, SkillMetadata
 from interview_copilot.application.career import CareerService
 from interview_copilot.domain.career import CareerProfile, WeeklyPlanItem
 from interview_copilot.infrastructure.database import Base, UserRecord
+from interview_copilot.infrastructure.drafts import TrainingDraftRecord  # noqa: F401
+from interview_copilot.infrastructure.questions import QuestionRecord
+from interview_copilot.providers.deepseek_agent import DeepSeekAgentError
+
+
+class FakePlanner:
+    model_name = "fake-planner"
+    prompt_version = "career-planning-test-v1"
+
+    def __init__(self, question_id: UUID) -> None:
+        self.question_id = question_id
+
+    async def plan(self, **_: object) -> tuple[ActivatedSkill, CareerPlanAgentOutput]:
+        return (
+            ActivatedSkill(
+                metadata=SkillMetadata(
+                    name="career-planning-coach",
+                    version="1.0.0",
+                    title="求职训练规划",
+                    description="测试规划",
+                    training_mode="career_planning",
+                ),
+                instructions="测试",
+                rubric={"version": "career-planning-rubric-v1"},
+            ),
+            CareerPlanAgentOutput(
+                goal="练清项目表达",
+                items=[
+                    CareerPlanAgentItem(
+                        day_index=0,
+                        time_slot="evening",
+                        estimated_minutes=20,
+                        task_type="structured_expression",
+                        title="项目 STAR 重答",
+                        reason="个人题库与目标岗位相关",
+                        completion_criteria="完成两次回答，背景不超过两句话",
+                        question_id=self.question_id,
+                        coaching_mode="structured_expression",
+                        exercise_type="star_story",
+                        difficulty="guided",
+                    )
+                ],
+            ),
+        )
 
 
 def _user(session: Session, name: str) -> UserRecord:
@@ -22,63 +71,117 @@ def _user(session: Session, name: str) -> UserRecord:
     return user
 
 
-def test_career_memory_requires_explicit_save_and_plan_is_owner_scoped() -> None:
+def _question(session: Session, owner: UserRecord) -> QuestionRecord:
+    record = QuestionRecord(
+        slug=f"career-{uuid4().hex}",
+        title="介绍一次模型性能优化经历",
+        prompt="请使用 STAR 说明你如何优化模型性能。",
+        difficulty="intermediate",
+        question_type="project",
+        intent="考察项目表达",
+        answer_outline=["背景", "行动", "结果"],
+        common_mistakes=["背景过长"],
+        published=False,
+        owner_user_id=owner.id,
+        content_markdown="",
+        framework="star",
+        created_at=datetime.now(UTC),
+    )
+    session.add(record)
+    session.commit()
+    return record
+
+
+@pytest.mark.asyncio
+async def test_plan_draft_requires_confirmation_and_updates_owned_item() -> None:
     engine = create_engine("sqlite+pysqlite:///:memory:")
     Base.metadata.create_all(engine)
     with Session(engine, expire_on_commit=False) as session:
         owner = _user(session, "career-owner")
         stranger = _user(session, "career-stranger")
-        service = CareerService(session)
-
-        empty = service.get(user_id=owner.id, suggested_focus="练习量化结果")
-        assert empty.profile.confirmed_at is None
-        assert empty.suggested_focus == "练习量化结果"
-
-        profile = service.save_profile(
+        question = _question(session, owner)
+        service = CareerService(session, FakePlanner(question.id))
+        service.save_profile(
             user_id=owner.id,
             profile=CareerProfile(
                 target_role="AI 应用开发工程师",
                 target_level="中级",
-                weekly_hours=8,
+                weekly_hours=2,
+                available_weekdays=[0, 2],
             ),
         )
+
+        draft = await service.create_draft(
+            user_id=owner.id,
+            request_id=uuid4(),
+            week_start=date(2026, 7, 13),
+        )
+        assert service.get(user_id=owner.id).weekly_plan is None
+        assert draft.items[0].question_id == question.id
+
         plan = service.save_weekly_plan(
             user_id=owner.id,
-            week_start=date(2026, 7, 13),
-            goal="补齐项目表达",
-            items=[
-                WeeklyPlanItem(
-                    id=uuid4(),
-                    category="learning",
-                    title="完成 STAR 重答",
-                    target_count=3,
-                    completed_count=1,
-                )
-            ],
+            week_start=draft.week_start,
+            goal=draft.goal,
+            items=draft.items,
             status="active",
+            draft_id=draft.id,
+        )
+        completed = service.update_item_status(
+            user_id=owner.id,
+            plan_id=plan.id,
+            item_id=plan.items[0].id,
+            status="completed",
         )
 
-        assert profile.confirmed_at is not None
-        assert service.get(user_id=owner.id, suggested_focus=None).weekly_plan == plan
-        with pytest.raises(LookupError, match="找不到这份周计划"):
-            service.delete_weekly_plan(user_id=stranger.id, plan_id=plan.id)
-        assert service.get(user_id=stranger.id, suggested_focus=None).profile.confirmed_at is None
+        assert completed.status == "completed"
+        assert service.get(user_id=owner.id).weekly_plan is not None
+        with pytest.raises(LookupError, match="找不到这项训练计划"):
+            service.update_item_status(
+                user_id=stranger.id,
+                plan_id=plan.id,
+                item_id=plan.items[0].id,
+                status="completed",
+            )
 
 
-def test_weekly_plan_requires_monday() -> None:
+@pytest.mark.asyncio
+async def test_planner_rejects_unapproved_question_uuid() -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    with Session(engine, expire_on_commit=False) as session:
+        owner = _user(session, "allowlist-owner")
+        service = CareerService(session, FakePlanner(uuid4()))
+        service.save_profile(
+            user_id=owner.id,
+            profile=CareerProfile(target_role="后端开发", available_weekdays=[0]),
+        )
+        with pytest.raises(DeepSeekAgentError, match="未授权题目"):
+            await service.create_draft(
+                user_id=owner.id,
+                request_id=uuid4(),
+                week_start=date(2026, 7, 13),
+            )
+
+
+def test_weekly_plan_requires_monday_before_persistence() -> None:
     engine = create_engine("sqlite+pysqlite:///:memory:")
     Base.metadata.create_all(engine)
     with Session(engine, expire_on_commit=False) as session:
         owner = _user(session, "plan-owner")
+        item = WeeklyPlanItem(
+            id=uuid4(),
+            scheduled_date=date(2026, 7, 16),
+            task_type="question_review",
+            title="训练",
+            reason="手动安排",
+            completion_criteria="完成一次",
+        )
         with pytest.raises(ValueError, match="必须是周一"):
             CareerService(session).save_weekly_plan(
                 user_id=owner.id,
                 week_start=date(2026, 7, 16),
                 goal="错误日期",
-                items=[
-                    WeeklyPlanItem(
-                        id=uuid4(), category="learning", title="训练", target_count=1
-                    )
-                ],
+                items=[item],
                 status="active",
             )

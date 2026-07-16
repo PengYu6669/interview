@@ -238,6 +238,7 @@ class CoachingSessionData(BaseModel):
     created_at: datetime
     updated_at: datetime
     completed_at: datetime | None
+    career_plan_item_id: UUID | None = None
 
 
 class CoachingSessionSummary(BaseModel):

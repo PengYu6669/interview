@@ -38,6 +38,7 @@
 .dailyPlan span, .dailyPlan small { color: var(--muted); font-size: 12px; }
 .dailyPlan strong { margin: 3px 0; font-size: 13px; }
 .dailyPlan > a { display: inline-flex; min-height: 36px; flex: none; align-items: center; gap: 6px; border-radius: 4px; background: var(--ink); padding: 0 12px; color: #fff; font-size: 12px; font-weight: 700; }
+.todayPlan{margin-top:22px;border-block:1px solid var(--line);background:#fff}.todayPlan>header{display:flex;min-height:52px;align-items:center;justify-content:space-between;gap:12px;padding:9px 14px}.todayPlan>header>div{display:flex;align-items:center;gap:8px}.todayPlan>header svg{color:var(--accent)}.todayPlan>header span,.todayPlan>header strong{display:block}.todayPlan>header span{color:var(--muted);font-size:11px}.todayPlan>header strong{margin-top:2px;font-size:13px}.todayPlan>header>a{display:inline-flex;align-items:center;gap:4px;color:var(--accent-dark);font-size:12px;font-weight:700}.todayPlan>div{border-top:1px solid var(--line)}.todayPlan article{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:10px;padding:11px 14px}.todayPlan article+article{border-top:1px solid #edf0ef}.todayPlan article>span{color:var(--muted)}.todayPlan article>span.todayDone{color:var(--success)}.todayPlan article strong,.todayPlan article small{display:block}.todayPlan article strong{font-size:13px}.todayPlan article small{margin-top:3px;color:var(--muted);font-size:11px;line-height:1.45}.todayPlan article>button{display:inline-flex;min-height:32px;align-items:center;gap:4px;border:0;border-radius:4px;background:var(--ink);padding:0 10px;color:#fff;font-size:11px;font-weight:700}
 
 .modeGrid {
   display: grid;
@@ -499,6 +500,7 @@
   .taskMeta { flex-wrap: wrap; }
   .dailyPlan { align-items: stretch; flex-direction: column; }
   .dailyPlan > a { justify-content: center; }
+  .todayPlan article{grid-template-columns:auto minmax(0,1fr)}.todayPlan article>button{grid-column:2;justify-content:center}.todayPlan>header{align-items:flex-start}.todayPlan>header>div{align-items:flex-start}
   .recentRow { grid-template-columns: minmax(0, 1fr) auto; gap: 10px; }
   .recentRow time { display: none; }
   .form, .preview { padding: 18px; }

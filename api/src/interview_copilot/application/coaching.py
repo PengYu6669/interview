@@ -24,6 +24,7 @@ from interview_copilot.domain.coaching import (
     CoachingTaskPlan,
     CoachingTurnData,
 )
+from interview_copilot.infrastructure.career import WeeklyPlanItemRecord, WeeklyPlanRecord
 from interview_copilot.infrastructure.coaching import CoachingSessionRecord, CoachingTurnRecord
 from interview_copilot.infrastructure.questions import QuestionRecord
 
@@ -73,8 +74,15 @@ class CoachingService:
         source_ids: list[UUID],
         exercise_type: CoachingExerciseType | None = None,
         difficulty: CoachingDifficulty = "guided",
+        career_plan_item_id: UUID | None = None,
     ) -> CoachingSessionData:
         coach = self._required_coach()
+        plan_item = self._career_plan_item(
+            user_id=user_id,
+            item_id=career_plan_item_id,
+            mode=mode,
+            source_ids=source_ids,
+        )
         sources = self._training_sources(user_id=user_id, source_ids=source_ids)
         source_questions = [
             CoachingSourceQuestion(
@@ -137,10 +145,14 @@ class CoachingService:
             source_ids=[str(item) for item in source_ids],
             model=coach.model_name,
             prompt_version=coach.prompt_version,
+            career_plan_item_id=career_plan_item_id,
             created_at=now,
             updated_at=now,
         )
         self._session.add(record)
+        if plan_item:
+            plan_item.status = "in_progress"
+            plan_item.updated_at = now
         self._session.commit()
         self._session.refresh(record)
         return self._to_domain(record)
@@ -279,6 +291,27 @@ class CoachingService:
         if decision.action == "complete":
             record.status = "completed"
             record.completed_at = now
+            if record.career_plan_item_id:
+                plan_item = self._session.get(
+                    WeeklyPlanItemRecord, record.career_plan_item_id
+                )
+                if plan_item:
+                    plan_item.status = "completed"
+                    plan_item.completed_at = now
+                    plan_item.updated_at = now
+                    self._session.flush()
+                    plan = self._session.get(WeeklyPlanRecord, plan_item.plan_id)
+                    if plan:
+                        plan.status = (
+                            "completed"
+                            if plan.items
+                            and all(
+                                item.status in {"completed", "skipped"}
+                                for item in plan.items
+                            )
+                            else "active"
+                        )
+                        plan.updated_at = now
         self._session.commit()
         self._session.refresh(record)
         return self._to_domain(record)
@@ -332,6 +365,34 @@ class CoachingService:
             ).all()
         )
 
+    def _career_plan_item(
+        self,
+        *,
+        user_id: UUID,
+        item_id: UUID | None,
+        mode: CoachingMode,
+        source_ids: list[UUID],
+    ) -> WeeklyPlanItemRecord | None:
+        if not item_id:
+            return None
+        item = self._session.scalar(
+            select(WeeklyPlanItemRecord)
+            .join(WeeklyPlanRecord, WeeklyPlanRecord.id == WeeklyPlanItemRecord.plan_id)
+            .where(
+                WeeklyPlanItemRecord.id == item_id,
+                WeeklyPlanRecord.user_id == user_id,
+            )
+        )
+        if not item:
+            raise ValueError("找不到对应的求职计划事项")
+        if item.status in {"completed", "skipped"}:
+            raise ValueError("这项求职计划已经结束")
+        if item.coaching_mode != mode:
+            raise ValueError("计划事项与专项训练模式不匹配")
+        if item.question_id and item.question_id not in source_ids:
+            raise ValueError("计划事项关联题目没有带入专项训练")
+        return item
+
     def _to_domain(self, record: CoachingSessionRecord) -> CoachingSessionData:
         return CoachingSessionData(
             id=record.id,
@@ -360,6 +421,7 @@ class CoachingService:
             created_at=record.created_at,
             updated_at=record.updated_at,
             completed_at=record.completed_at,
+            career_plan_item_id=record.career_plan_item_id,
         )
 
     def _required_coach(self) -> TrainingCoach:

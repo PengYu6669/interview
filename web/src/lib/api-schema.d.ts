@@ -263,6 +263,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/career/today": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Today Plan */
+        get: operations["get_today_plan_v1_career_today_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/career/profile": {
         parameters: {
             query?: never;
@@ -276,6 +293,23 @@ export interface paths {
         post?: never;
         /** Delete Career Profile */
         delete: operations["delete_career_profile_v1_career_profile_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/career/weekly-plan/draft": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Generate Weekly Plan Draft */
+        post: operations["generate_weekly_plan_draft_v1_career_weekly_plan_draft_post"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -296,6 +330,23 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/v1/career/weekly-plan/{plan_id}/items/{item_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update Weekly Plan Item */
+        patch: operations["update_weekly_plan_item_v1_career_weekly_plan__plan_id__items__item_id__patch"];
         trace?: never;
     };
     "/v1/career/weekly-plan/{plan_id}": {
@@ -1127,6 +1178,14 @@ export interface components {
              * @default 5
              */
             weekly_hours: number;
+            /** Available Weekdays */
+            available_weekdays?: number[];
+            /**
+             * Preferred Time Slot
+             * @default evening
+             * @enum {string}
+             */
+            preferred_time_slot: "morning" | "afternoon" | "evening" | "flexible";
             /**
              * Constraints
              * @default
@@ -1158,18 +1217,58 @@ export interface components {
              * @default 5
              */
             weekly_hours: number;
+            /** Available Weekdays */
+            available_weekdays?: number[];
+            /**
+             * Preferred Time Slot
+             * @default evening
+             * @enum {string}
+             */
+            preferred_time_slot: "morning" | "afternoon" | "evening" | "flexible";
             /**
              * Constraints
              * @default
              */
             constraints: string;
         };
+        /** CareerQuestionOption */
+        CareerQuestionOption: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Slug */
+            slug: string;
+            /** Title */
+            title: string;
+            /** Difficulty */
+            difficulty: string;
+            /** Framework */
+            framework: string;
+            /** Topics */
+            topics?: string[];
+            /** Source Document Name */
+            source_document_name?: string | null;
+            /**
+             * Review Due
+             * @default false
+             */
+            review_due: boolean;
+            /**
+             * Owned
+             * @default false
+             */
+            owned: boolean;
+        };
         /** CareerWorkspace */
         CareerWorkspace: {
             profile: components["schemas"]["CareerProfile"];
             weekly_plan: components["schemas"]["WeeklyPlan"] | null;
-            /** Suggested Focus */
-            suggested_focus?: string | null;
+            /** Plan History */
+            plan_history?: components["schemas"]["WeeklyPlan"][];
+            /** Question Options */
+            question_options?: components["schemas"]["CareerQuestionOption"][];
         };
         /** CitationData */
         CitationData: {
@@ -1291,6 +1390,8 @@ export interface components {
              * @enum {string}
              */
             difficulty: "guided" | "assisted" | "pressure";
+            /** Career Plan Item Id */
+            career_plan_item_id?: string | null;
         };
         /** CoachingDecision */
         CoachingDecision: {
@@ -1461,6 +1562,8 @@ export interface components {
             updated_at: string;
             /** Completed At */
             completed_at: string | null;
+            /** Career Plan Item Id */
+            career_plan_item_id?: string | null;
         };
         /** CoachingSessionSummary */
         CoachingSessionSummary: {
@@ -2912,6 +3015,21 @@ export interface components {
             /** Warnings */
             warnings: string[];
         };
+        /** PlanningBasis */
+        PlanningBasis: {
+            /** Profile Confirmed */
+            profile_confirmed: boolean;
+            /** Question Count */
+            question_count: number;
+            /** Owned Question Count */
+            owned_question_count: number;
+            /** Due Question Count */
+            due_question_count: number;
+            /** Recent Training Count */
+            recent_training_count: number;
+            /** Evidence Focus */
+            evidence_focus?: string | null;
+        };
         /** ProjectMetric */
         ProjectMetric: {
             /** Name */
@@ -3449,6 +3567,18 @@ export interface components {
              * @enum {string}
              */
             status: "active" | "completed" | "archived";
+            basis: components["schemas"]["PlanningBasis"];
+            /** Model */
+            model?: string | null;
+            /** Prompt Version */
+            prompt_version?: string | null;
+            /** Skill Version */
+            skill_version?: string | null;
+            /**
+             * Confirmed At
+             * Format: date-time
+             */
+            confirmed_at: string;
             /**
              * Created At
              * Format: date-time
@@ -3460,6 +3590,43 @@ export interface components {
              */
             updated_at: string;
         };
+        /** WeeklyPlanDraft */
+        WeeklyPlanDraft: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Week Start
+             * Format: date
+             */
+            week_start: string;
+            /** Goal */
+            goal: string;
+            /** Items */
+            items: components["schemas"]["WeeklyPlanItem"][];
+            basis: components["schemas"]["PlanningBasis"];
+            /** Model */
+            model: string;
+            /** Prompt Version */
+            prompt_version: string;
+            /** Skill Version */
+            skill_version: string;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+        };
+        /** WeeklyPlanDraftRequest */
+        WeeklyPlanDraftRequest: {
+            /**
+             * Week Start
+             * Format: date
+             */
+            week_start: string;
+        };
         /** WeeklyPlanItem */
         WeeklyPlanItem: {
             /**
@@ -3468,22 +3635,71 @@ export interface components {
              */
             id: string;
             /**
-             * Category
+             * Scheduled Date
+             * Format: date
+             */
+            scheduled_date: string;
+            /**
+             * Time Slot
+             * @default flexible
              * @enum {string}
              */
-            category: "learning" | "interview" | "resume" | "application";
+            time_slot: "morning" | "afternoon" | "evening" | "flexible";
+            /** Scheduled Time */
+            scheduled_time?: string | null;
+            /**
+             * Estimated Minutes
+             * @default 20
+             */
+            estimated_minutes: number;
+            /**
+             * Task Type
+             * @enum {string}
+             */
+            task_type: "question_review" | "structured_expression" | "business_sense" | "mock_interview" | "resume" | "application";
             /** Title */
             title: string;
+            /** Reason */
+            reason: string;
+            /** Completion Criteria */
+            completion_criteria: string;
             /**
-             * Target Count
-             * @default 1
+             * Status
+             * @default pending
+             * @enum {string}
              */
-            target_count: number;
+            status: "pending" | "in_progress" | "completed" | "skipped";
             /**
-             * Completed Count
+             * Origin
+             * @default manual
+             * @enum {string}
+             */
+            origin: "ai" | "manual" | "migrated";
+            /** Question Id */
+            question_id?: string | null;
+            /** Question Slug */
+            question_slug?: string | null;
+            /** Coaching Mode */
+            coaching_mode?: ("structured_expression" | "business_sense") | null;
+            /** Exercise Type */
+            exercise_type?: string | null;
+            /** Difficulty */
+            difficulty?: ("guided" | "assisted" | "pressure") | null;
+            /**
+             * Position
              * @default 0
              */
-            completed_count: number;
+            position: number;
+            /** Completed At */
+            completed_at?: string | null;
+        };
+        /** WeeklyPlanItemStatusRequest */
+        WeeklyPlanItemStatusRequest: {
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "pending" | "in_progress" | "completed" | "skipped";
         };
         /** WeeklyPlanRequest */
         WeeklyPlanRequest: {
@@ -3502,6 +3718,8 @@ export interface components {
              * @enum {string}
              */
             status: "active" | "completed" | "archived";
+            /** Draft Id */
+            draft_id?: string | null;
         };
         /** WorkExperience */
         WorkExperience: {
@@ -4160,6 +4378,39 @@ export interface operations {
             };
         };
     };
+    get_today_plan_v1_career_today_get: {
+        parameters: {
+            query?: {
+                date?: string | null;
+            };
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WeeklyPlanItem"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     save_career_profile_v1_career_profile_put: {
         parameters: {
             query?: never;
@@ -4224,6 +4475,41 @@ export interface operations {
             };
         };
     };
+    generate_weekly_plan_draft_v1_career_weekly_plan_draft_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WeeklyPlanDraftRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WeeklyPlanDraft"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     save_weekly_plan_v1_career_weekly_plan_put: {
         parameters: {
             query?: never;
@@ -4246,6 +4532,44 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["WeeklyPlan"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_weekly_plan_item_v1_career_weekly_plan__plan_id__items__item_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                plan_id: string;
+                item_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WeeklyPlanItemStatusRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WeeklyPlanItem"];
                 };
             };
             /** @description Validation Error */

@@ -56,6 +56,7 @@ class CoachingCreateRequest(BaseModel):
     source_ids: list[UUID] = Field(default_factory=list, max_length=30)
     exercise_type: CoachingExerciseType | None = None
     difficulty: CoachingDifficulty = "guided"
+    career_plan_item_id: UUID | None = None
 
 
 class CoachingAnswerRequest(BaseModel):

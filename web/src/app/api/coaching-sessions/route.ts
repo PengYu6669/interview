@@ -11,6 +11,7 @@ const createSchema = z.object({
   source_ids: z.array(z.string().uuid()).max(30),
   exercise_type: z.enum(["star_story", "prep_pitch", "structure_puzzle", "decision_simulation", "fermi_estimation"]).optional(),
   difficulty: z.enum(["guided", "assisted", "pressure"]).default("guided"),
+  career_plan_item_id: z.string().uuid().optional(),
 });
 
 export async function GET(request: NextRequest) {

@@ -7,7 +7,9 @@ from interview_copilot.config import get_settings
 from interview_copilot.infrastructure.agent_audit import AgentToolAuditRecord  # noqa: F401
 from interview_copilot.infrastructure.boards import InterviewBoardSnapshotRecord  # noqa: F401
 from interview_copilot.infrastructure.career import (  # noqa: F401
+    CareerPlanDraftRecord,
     CareerProfileRecord,
+    WeeklyPlanItemRecord,
     WeeklyPlanRecord,
 )
 from interview_copilot.infrastructure.coaching import CoachingSessionRecord  # noqa: F401

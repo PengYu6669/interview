@@ -1,0 +1,34 @@
+{
+  "dataset_version": "career-planning-eval-v1",
+  "skill_version": "1.0.0",
+  "cases": [
+    {
+      "id": "limited-evening-schedule",
+      "profile": {
+        "target_role": "后端开发工程师",
+        "target_level": "中级",
+        "target_companies": [],
+        "preferred_cities": ["上海"],
+        "weekly_hours": 2,
+        "available_weekdays": [0, 2, 5],
+        "preferred_time_slot": "evening",
+        "constraints": "工作日晚上训练，周六可以复盘"
+      },
+      "requires_owned_question": false
+    },
+    {
+      "id": "personal-question-grounding",
+      "profile": {
+        "target_role": "AI 应用开发工程师",
+        "target_level": "中级",
+        "target_companies": [],
+        "preferred_cities": [],
+        "weekly_hours": 4,
+        "available_weekdays": [1, 3, 5],
+        "preferred_time_slot": "evening",
+        "constraints": "优先使用个人题库"
+      },
+      "requires_owned_question": true
+    }
+  ]
+}

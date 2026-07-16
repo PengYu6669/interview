@@ -30,6 +30,7 @@ class DeepSeekFunctionCallingClient:
         model: str,
         registry: ToolRegistry,
         executor: ToolExecutor,
+        prompt_version: str | None = None,
     ) -> None:
         if not api_key:
             raise ValueError("DeepSeek API Key 尚未配置")
@@ -37,6 +38,7 @@ class DeepSeekFunctionCallingClient:
         self._base_url = base_url.rstrip("/")
         self._model = model
         self.model_name = model
+        self.prompt_version = prompt_version or type(self).prompt_version
         self._registry = registry
         self._executor = executor
 

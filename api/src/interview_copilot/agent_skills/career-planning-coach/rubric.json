@@ -1,0 +1,18 @@
+{
+  "version": "career-planning-rubric-v1",
+  "invariants": [
+    "source_uuid_allowlist",
+    "weekly_time_budget",
+    "available_weekdays_only",
+    "maximum_two_items_per_day",
+    "actionable_completion_criteria",
+    "no_automatic_persistence"
+  ],
+  "quality_dimensions": [
+    "target_relevance",
+    "question_bank_grounding",
+    "weakness_coverage",
+    "schedule_feasibility",
+    "task_diversity"
+  ]
+}

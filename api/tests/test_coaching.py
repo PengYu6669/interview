@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from types import SimpleNamespace
 from uuid import uuid4
 
@@ -24,6 +24,7 @@ from interview_copilot.domain.coaching import (
     CoachingTaskPlan,
     DimensionAssessment,
 )
+from interview_copilot.infrastructure.career import WeeklyPlanItemRecord, WeeklyPlanRecord
 from interview_copilot.infrastructure.database import Base, UserRecord
 
 
@@ -130,6 +131,44 @@ async def test_coaching_session_requires_start_is_idempotent_and_completes() -> 
     with Session(engine, expire_on_commit=False) as session:
         owner = _user(session, "coach-owner")
         stranger = _user(session, "coach-stranger")
+        now = datetime.now(UTC)
+        weekly_plan = WeeklyPlanRecord(
+            user_id=owner.id,
+            week_start=date(2026, 7, 13),
+            goal="完成结构化表达训练",
+            status="active",
+            basis={
+                "profile_confirmed": True,
+                "question_count": 0,
+                "owned_question_count": 0,
+                "due_question_count": 0,
+                "recent_training_count": 0,
+                "evidence_focus": None,
+            },
+            confirmed_at=now,
+            created_at=now,
+            updated_at=now,
+        )
+        plan_item = WeeklyPlanItemRecord(
+            plan=weekly_plan,
+            scheduled_date=date(2026, 7, 13),
+            time_slot="evening",
+            estimated_minutes=10,
+            task_type="structured_expression",
+            title="项目表达",
+            reason="补齐个人贡献",
+            completion_criteria="完成两次回答",
+            status="pending",
+            origin="ai",
+            coaching_mode="structured_expression",
+            exercise_type="star_story",
+            difficulty="guided",
+            position=0,
+            created_at=now,
+            updated_at=now,
+        )
+        session.add(weekly_plan)
+        session.commit()
         coach = FakeCoach()
         service = CoachingService(session, coach)
         created = await service.create(
@@ -140,9 +179,12 @@ async def test_coaching_session_requires_start_is_idempotent_and_completes() -> 
             target_role="AI 应用开发工程师",
             training_goal="练习项目表达",
             source_ids=[],
+            career_plan_item_id=plan_item.id,
         )
 
         assert created.status == "planned"
+        session.refresh(plan_item)
+        assert plan_item.status == "in_progress"
         assert created.current_question == "请说明你在项目中的核心贡献。"
         with pytest.raises(ValueError, match="不能提交"):
             await service.answer(
@@ -186,6 +228,8 @@ async def test_coaching_session_requires_start_is_idempotent_and_completes() -> 
         assert coach.evaluate_calls == 2
         assert completed.status == "completed"
         assert completed.current_question is None
+        session.refresh(plan_item)
+        assert plan_item.status == "completed"
         with pytest.raises(LookupError):
             service.get(user_id=stranger.id, session_id=created.id)
 

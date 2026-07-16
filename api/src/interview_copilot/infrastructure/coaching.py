@@ -28,6 +28,9 @@ class CoachingSessionRecord(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    career_plan_item_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("weekly_plan_items.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     turns: Mapped[list["CoachingTurnRecord"]] = relationship(cascade="all, delete-orphan")
 
 

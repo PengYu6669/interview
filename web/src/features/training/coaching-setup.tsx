@@ -15,7 +15,7 @@ const exercises: Record<CoachingMode, CoachingExerciseType[]> = {
   business_sense: ["decision_simulation", "fermi_estimation"],
 };
 
-export function CoachingSetup({ mode, initialFocus = "", initialDifficulty = "guided" }: { mode: CoachingMode; initialFocus?: string; initialDifficulty?: CoachingDifficulty }) {
+export function CoachingSetup({ mode, initialFocus = "", initialDifficulty = "guided", planItemId }: { mode: CoachingMode; initialFocus?: string; initialDifficulty?: CoachingDifficulty; planItemId?: string }) {
   const router = useRouter();
   const [role, setRole] = useState("AI 应用开发工程师");
   const [goal, setGoal] = useState(initialFocus);
@@ -50,7 +50,7 @@ export function CoachingSetup({ mode, initialFocus = "", initialDifficulty = "gu
   async function create(event: FormEvent) {
     event.preventDefault(); setLoading(true); setError("");
     try {
-      const response = await fetch("/api/coaching-sessions", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ mode, channel, target_role: role, training_goal: goal, source_ids: sourceQuestions.map((item) => item.id), exercise_type: exercise, difficulty }) });
+      const response = await fetch("/api/coaching-sessions", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ mode, channel, target_role: role, training_goal: goal, source_ids: sourceQuestions.map((item) => item.id), exercise_type: exercise, difficulty, ...(planItemId ? { career_plan_item_id: planItemId } : {}) }) });
       const payload: unknown = await response.json();
       if (!response.ok) throw new Error(typeof payload === "object" && payload && "detail" in payload ? String(payload.detail) : "训练任务生成失败");
       const parsed = coachingSessionSchema.safeParse(payload);

@@ -103,6 +103,7 @@ def test_skill_registry_progressively_loads_metadata_then_content() -> None:
 
     assert [item.name for item in metadata] == [
         "business-sense-coach",
+        "career-planning-coach",
         "structured-expression-coach",
     ]
     activated = registry.activate("structured-expression-coach")
@@ -112,6 +113,9 @@ def test_skill_registry_progressively_loads_metadata_then_content() -> None:
     business = registry.activate("business-sense-coach")
     assert business.metadata.version == "2.0.0"
     assert business.rubric["version"] == "business-sense-rubric-v2"
+    planning = registry.activate("career-planning-coach")
+    assert planning.metadata.version == "1.0.0"
+    assert planning.rubric["version"] == "career-planning-rubric-v1"
     assert "不是商业百科" in business.instructions
     assert len(business.instructions.splitlines()) <= 200
 
