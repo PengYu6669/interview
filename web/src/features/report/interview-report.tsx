@@ -29,6 +29,7 @@ import { useEffect, useState } from "react";
 
 import { PageIntro, StatusBadge } from "@/components/page-shell";
 import { AiWorkReceipt } from "@/components/ai-work-receipt";
+import { ConfidenceBar, RadarChart, ScoreRing } from "@/components/data-visualization";
 import { EvidenceChain } from "@/components/evidence-chain";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -320,8 +321,8 @@ export function InterviewReport({ sessionId }: { sessionId: string }) {
     {report.source_session_id && <RetrainingComparison report={report} sourceReport={sourceReport?.session_id === report.source_session_id ? sourceReport : null} error={sourceReportError?.sourceId === report.source_session_id ? sourceReportError.message : ""} />}
 
     <section className="report-overview">
-      <div className="overall-score"><span>已覆盖回答表现</span><div><strong>{report.content.overall_score}</strong><small>/ 100</small></div><StatusBadge>{Math.round(report.content.confidence * 100)}% 置信度</StatusBadge><p>{report.content.summary}</p></div>
-      <div className="score-breakdown"><div className="panel-heading"><div><span>能力分布</span><small>每项均引用回答轮次，可申请独立复核</small></div></div>{report.content.skill_scores.map((item, index) => {
+      <div className="overall-score"><span>已覆盖回答表现</span><ScoreRing value={report.content.overall_score} /><ConfidenceBar value={report.content.confidence} /><p>{report.content.summary}</p></div>
+      <div className="score-breakdown"><div className="panel-heading"><div><span>能力分布</span><small>每项均引用回答轮次，可申请独立复核</small></div></div>{report.content.skill_scores.length >= 3 && <RadarChart data={report.content.skill_scores.map((item) => ({ label: item.skill, value: item.score }))} />}{report.content.skill_scores.map((item, index) => {
         const review = latestReview(index);
         const displayedScore = review?.decision === "revised" && review.revised_score !== null && review.revised_score !== undefined ? review.revised_score : item.score;
         return <div className="score-row" key={`${item.skill}-${index}`}><div><span>{item.skill}</span><strong>{displayedScore}{displayedScore !== item.score && <small>原 {item.score}</small>}</strong></div><div className="score-track"><i style={{ width: `${displayedScore}%` }} /></div><div className="score-evidence-line"><small>证据：第 {item.evidence_turns.join("、")} 轮 · 置信度 {Math.round(item.confidence * 100)}%</small><button type="button" onClick={() => openReview({ skillIndex: index, skill: item.skill, originalScore: item.score })}><Scale size={13} />{review ? "再次处理" : "对此评分有异议"}</button></div>{review && <ReviewResult review={review} />}</div>;

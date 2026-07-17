@@ -1,6 +1,8 @@
 import { ArrowDown, Quote, ShieldCheck, Target } from "lucide-react";
 import type { ReactNode } from "react";
 
+import { ConfidenceBar } from "@/components/data-visualization";
+
 export function EvidenceChain({
   conclusion,
   evidence,
@@ -30,7 +32,7 @@ export function EvidenceChain({
     <div className="evidence-chain-flow">
       <section><Quote size={15} /><div><strong>{previousEvidence ? "前后回答证据" : "回答证据"}</strong>{previousEvidence && <blockquote><small>来源训练</small>“{previousEvidence}”</blockquote>}<blockquote>{previousEvidence && <small>本次训练</small>}{evidence ? `“${evidence}”` : "当前没有可逐字引用的回答证据"}</blockquote></div></section>
       <ArrowDown className="evidence-chain-arrow" size={14} />
-      <section><ShieldCheck size={15} /><div><strong>判断依据</strong><p>{basis}</p><small>{confidenceLabel}{confidence === null || confidence === undefined ? "" : ` · 可信度 ${Math.round(confidence * 100)}%`}</small></div></section>
+      <section><ShieldCheck size={15} /><div><strong>判断依据</strong><p>{basis}</p><small>{confidenceLabel}</small>{confidence !== null && confidence !== undefined && <ConfidenceBar value={confidence} compact />}</div></section>
       {action && <><ArrowDown className="evidence-chain-arrow" size={14} /><section><Target size={15} /><div><strong>下一次验证</strong><p>{action}</p></div></section></>}
     </div>
   </article>;

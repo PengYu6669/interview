@@ -26,7 +26,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ a
         <section className="landing-hero">
           <div className="landing-hero-copy">
             <p className="setup-kicker"><span />针对真实经历的技术面试训练</p>
-            <h1>不是再做一套题，<br />而是练会讲清你的项目</h1>
+            <h1>不是再做一套题，<br />而是练会<span>讲清你的项目</span></h1>
             <p>上传简历和目标岗位，先校正 AI 对你的理解，再进入一场接近真实视频会议节奏的模拟技术面试。</p>
             <div className="landing-hero-actions">{user ? <><Link href="/training" className="landing-primary">查看今日教练建议 <ArrowRight size={17} /></Link><Link href="/history" className="secondary-button">回看成长档案</Link></> : <><Link href="/register" className="landing-primary">创建训练账号 <ArrowRight size={17} /></Link><Link href="/login" className="secondary-button">已有账号，登录</Link></>}</div>
             <div className="landing-trust"><span><ShieldCheck size={14} />材料默认保留 7 天</span><span><CheckCircle2 size={14} />评价附带回答证据</span></div>
