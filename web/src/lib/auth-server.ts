@@ -29,7 +29,7 @@ export async function currentUser(): Promise<AuthUser | null> {
   }
 }
 
-export function safeInternalPath(requested: string | undefined, fallback = "/setup"): string {
+export function safeInternalPath(requested: string | undefined, fallback = "/training"): string {
   if (!requested || !requested.startsWith("/") || requested.startsWith("//") || requested.includes("\\")) return fallback;
   try {
     const parsed = new URL(requested, "http://internal.local");

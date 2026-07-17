@@ -132,13 +132,13 @@ class InterviewReportService:
                 .group_by(InterviewTurnRecord.session_id)
             ).all()
         }
-        report_ids = set(
-            self._session.scalars(
-                select(InterviewReportRecord.session_id).where(
-                    InterviewReportRecord.session_id.in_(session_ids)
-                )
-            ).all()
-        )
+        report_records = self._session.scalars(
+            select(InterviewReportRecord).where(
+                InterviewReportRecord.session_id.in_(session_ids)
+            )
+        ).all()
+        reports = {record.session_id: record for record in report_records}
+        report_ids = set(reports)
         result = []
         for record in records:
             report_status: ReportGenerationStatus = (
@@ -160,6 +160,21 @@ class InterviewReportService:
             )
             if record.status == "completed":
                 answered_questions = total_questions
+            report_record = reports.get(record.id)
+            report_content = (
+                InterviewReportContent.model_validate(report_record.content)
+                if report_record
+                else None
+            )
+            has_improvement = bool(report_content and report_content.improvements)
+            primary_finding = (
+                report_content.improvements[0]
+                if has_improvement and report_content
+                else report_content.strengths[0]
+                if report_content and report_content.strengths
+                else None
+            )
+            finding_kind = "改进" if has_improvement else "优势"
             result.append(
                 InterviewHistoryItem(
                     id=record.id,
@@ -181,6 +196,12 @@ class InterviewReportService:
                     completed_at=record.completed_at,
                     report_available=record.id in report_ids,
                     report_status=report_status,
+                    report_summary=report_content.summary if report_content else None,
+                    evidence_update=(
+                        f"{finding_kind} · {primary_finding.skill}：{primary_finding.title}"
+                        if primary_finding
+                        else None
+                    ),
                 )
             )
         return result
@@ -626,6 +647,7 @@ class InterviewReportService:
             )
         return InterviewReportData(
             session_id=session.id,
+            source_session_id=session.source_session_id,
             target_role=session.target_role,
             target_company=context.target_company,
             target_level=context.target_level,

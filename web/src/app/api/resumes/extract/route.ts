@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
+import { sessionToken } from "@/lib/auth-server";
+
 const API_BASE_URL = process.env.INTERVIEW_API_URL ?? "http://localhost:8000";
 
 const requestSchema = z.object({
@@ -22,9 +24,10 @@ export async function POST(request: Request) {
   }
 
   try {
+    const token = await sessionToken();
     const response = await fetch(`${API_BASE_URL}/v1/resumes/extract`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
       body: JSON.stringify(parsed.data),
       cache: "no-store",
       signal: AbortSignal.timeout(90_000),

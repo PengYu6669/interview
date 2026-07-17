@@ -1,12 +1,14 @@
 from datetime import UTC, datetime, timedelta
+from typing import cast
 from uuid import UUID
 
 from sqlalchemy import delete, or_, select
 from sqlalchemy.orm import Session
 
-from interview_copilot.domain.draft import TrainingDraftData
+from interview_copilot.domain.draft import TrainingDraftData, TrainingDraftSummary
 from interview_copilot.domain.resume import ResumeProfile
-from interview_copilot.domain.training import TrainingContext
+from interview_copilot.domain.training import InterviewType, TrainingContext
+from interview_copilot.infrastructure.career import WeeklyPlanItemRecord, WeeklyPlanRecord
 from interview_copilot.infrastructure.drafts import (
     TrainingDraftQuestionRecord,
     TrainingDraftRecord,
@@ -27,6 +29,14 @@ class DraftService:
 
     def create(self, *, user_id: UUID, data: dict) -> TrainingDraftData:
         now = datetime.now(UTC)
+        self._validate_source_session(
+            user_id=user_id,
+            source_session_id=data.get("source_session_id"),
+        )
+        self._validate_career_plan_item(
+            user_id=user_id,
+            item_id=data.get("career_plan_item_id"),
+        )
         question_ids = self._validated_question_ids(
             user_id=user_id,
             question_ids=data.pop("question_ids", []),
@@ -54,11 +64,49 @@ class DraftService:
             raise LookupError("找不到这份训练草稿")
         return self._to_domain(record)
 
+    def list_resumable(self, *, user_id: UUID, limit: int = 5) -> list[TrainingDraftSummary]:
+        now = datetime.now(UTC)
+        consumed_draft = select(InterviewSessionRecord.id).where(
+            InterviewSessionRecord.draft_id == TrainingDraftRecord.id
+        ).exists()
+        records = self._session.scalars(
+            select(TrainingDraftRecord)
+            .where(
+                TrainingDraftRecord.user_id == user_id,
+                TrainingDraftRecord.expires_at > now,
+                ~consumed_draft,
+            )
+            .order_by(TrainingDraftRecord.updated_at.desc())
+            .limit(limit)
+        ).all()
+        return [
+            TrainingDraftSummary(
+                id=record.id,
+                resume_filename=record.resume_filename,
+                target_role=record.target_role,
+                target_company=record.target_company,
+                interview_type=cast(InterviewType, record.interview_type),
+                updated_at=record.updated_at,
+                expires_at=record.expires_at,
+            )
+            for record in records
+        ]
+
     def update(self, *, user_id: UUID, draft_id: UUID, data: dict) -> TrainingDraftData:
         record = get_owned_draft(self._session, draft_id, user_id)
         if not record:
             raise LookupError("找不到这份训练草稿")
         question_ids = data.pop("question_ids", None)
+        if "source_session_id" in data:
+            self._validate_source_session(
+                user_id=user_id,
+                source_session_id=data["source_session_id"],
+            )
+        if "career_plan_item_id" in data:
+            self._validate_career_plan_item(
+                user_id=user_id,
+                item_id=data["career_plan_item_id"],
+            )
         current_question_ids = list(
             self._session.scalars(
                 select(TrainingDraftQuestionRecord.question_id).where(
@@ -137,6 +185,8 @@ class DraftService:
                 ).all()
             ),
             training_focus=record.training_focus,
+            source_session_id=record.source_session_id,
+            career_plan_item_id=record.career_plan_item_id,
             extraction=extraction,
             created_at=record.created_at,
             updated_at=record.updated_at,
@@ -166,3 +216,37 @@ class DraftService:
         if available_ids != set(unique_ids):
             raise ValueError("所选题目中包含不存在或无权使用的内容")
         return unique_ids
+
+    def _validate_source_session(
+        self,
+        *,
+        user_id: UUID,
+        source_session_id: UUID | None,
+    ) -> None:
+        if source_session_id is None:
+            return
+        owned = self._session.scalar(
+            select(InterviewSessionRecord.id).where(
+                InterviewSessionRecord.id == source_session_id,
+                InterviewSessionRecord.user_id == user_id,
+                InterviewSessionRecord.report_status == "ready",
+            )
+        )
+        if not owned:
+            raise ValueError("来源训练不存在、无权访问或尚未生成报告")
+
+    def _validate_career_plan_item(self, *, user_id: UUID, item_id: UUID | None) -> None:
+        if item_id is None:
+            return
+        owned = self._session.scalar(
+            select(WeeklyPlanItemRecord.id)
+            .join(WeeklyPlanRecord, WeeklyPlanRecord.id == WeeklyPlanItemRecord.plan_id)
+            .where(
+                WeeklyPlanItemRecord.id == item_id,
+                WeeklyPlanItemRecord.task_type == "mock_interview",
+                WeeklyPlanRecord.user_id == user_id,
+                WeeklyPlanRecord.status == "active",
+            )
+        )
+        if not owned:
+            raise ValueError("关联的模拟面试计划项不存在或无权使用")

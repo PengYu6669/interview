@@ -42,6 +42,9 @@ class InterviewSessionRecord(Base):
     depth_level: Mapped[int] = mapped_column(Integer, default=4)
     guidance_level: Mapped[int] = mapped_column(Integer, default=2)
     training_focus: Mapped[str] = mapped_column(String(500), default="")
+    source_session_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("interview_sessions.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     summary: Mapped[str] = mapped_column(Text)
     plan: Mapped[dict] = mapped_column(json_type)
     model: Mapped[str] = mapped_column(String(100))

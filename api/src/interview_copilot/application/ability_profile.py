@@ -62,7 +62,9 @@ class AbilityProfileService:
         kline: list[AbilityKlinePoint] = []
         previous_close: int | None = None
         next_training: str | None = None
-        skill_history: dict[str, list[tuple[int, float, int, UUID, str]]] = defaultdict(list)
+        skill_history: dict[
+            str, list[tuple[int, float, int, UUID, str, str]]
+        ] = defaultdict(list)
         for record, content in zip(records, contents, strict=True):
             close = content.overall_score
             open_score = previous_close if previous_close is not None else close
@@ -99,12 +101,20 @@ class AbilityProfileService:
             for effective_score, score in effective_scores:
                 finding = next(
                     (item for item in content.improvements if item.skill == score.skill),
-                    None,
+                    next(
+                        (item for item in content.strengths if item.skill == score.skill),
+                        None,
+                    ),
                 )
                 training_focus = (
                     (finding.improvement or finding.analysis)[:500]
                     if finding
                     else content.next_training[:500]
+                )
+                evidence_quote = (
+                    finding.evidence_quote
+                    if finding
+                    else "该能力的原句证据请回到来源报告核对"
                 )
                 skill_history[score.skill].append(
                     (
@@ -113,6 +123,7 @@ class AbilityProfileService:
                         len(set(score.evidence_turns)),
                         record.session_id,
                         training_focus,
+                        evidence_quote,
                     )
                 )
 
@@ -134,6 +145,7 @@ class AbilityProfileService:
                     trend=trend,
                     source_session_id=values[-1][3],
                     training_focus=values[-1][4],
+                    evidence_quote=values[-1][5],
                 )
             )
         skills.sort(key=lambda item: (item.score, -item.evidence_count, item.skill))

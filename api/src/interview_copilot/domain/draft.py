@@ -26,7 +26,21 @@ class TrainingDraftData(BaseModel):
     guidance_level: int = Field(ge=1, le=5)
     question_ids: list[UUID] = Field(default_factory=list, max_length=20)
     training_focus: str = Field(default="", max_length=500)
+    source_session_id: UUID | None = None
+    career_plan_item_id: UUID | None = None
     extraction: ResumeProfile | None = None
     created_at: datetime
+    updated_at: datetime
+    expires_at: datetime
+
+
+class TrainingDraftSummary(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: UUID
+    resume_filename: str = Field(max_length=255)
+    target_role: str = Field(max_length=150)
+    target_company: str = Field(default="", max_length=100)
+    interview_type: InterviewType = "comprehensive"
     updated_at: datetime
     expires_at: datetime

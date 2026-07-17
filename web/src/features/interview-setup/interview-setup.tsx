@@ -11,8 +11,12 @@ import { SetupSummary } from "./setup-summary";
 import { SetupIntro } from "./setup-intro";
 import { TargetSection } from "./target-section";
 import { QUESTION_INTERVIEW_SELECTION_KEY } from "@/lib/questions";
+import Link from "next/link";
+import { InterviewFlowProgress } from "@/features/interview-flow/flow-progress";
+import { TrainingDraft } from "@/lib/training-draft";
+import { DraftRecovery } from "./draft-recovery";
 
-export function InterviewSetup() {
+export function InterviewSetup({ careerPlanItemId }: { careerPlanItemId?: string }) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [state, setState] = useState<SetupState>({
@@ -38,6 +42,8 @@ export function InterviewSetup() {
   const [parseError, setParseError] = useState("");
   const [saveError, setSaveError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [sourceSessionId, setSourceSessionId] = useState<string | null>(null);
+  const [linkedPlanItemId, setLinkedPlanItemId] = useState<string | null>(careerPlanItemId ?? null);
   const readiness = useMemo(() => calculateReadiness(state), [state]);
 
   useEffect(() => {
@@ -46,6 +52,7 @@ export function InterviewSetup() {
       const retraining = readRetrainingContext(sessionStorage.getItem(RETRAINING_FOCUS_STORAGE_KEY));
       sessionStorage.removeItem(RETRAINING_FOCUS_STORAGE_KEY);
       const trainingFocus = retraining?.focus ?? "";
+      setSourceSessionId(retraining?.source_session_id ?? null);
       const selectionRaw = sessionStorage.getItem(QUESTION_INTERVIEW_SELECTION_KEY);
       if (selectionRaw) {
         try {
@@ -81,6 +88,7 @@ export function InterviewSetup() {
       try {
         const material = reviewMaterialSchema.parse(JSON.parse(raw));
         setParsedDocument(material.document);
+        setSourceSessionId(retraining?.source_session_id ?? material.sourceSessionId ?? null);
         setDraftId(material.draftId ?? null);
         setParseStatus("success");
         setState({
@@ -128,16 +136,52 @@ export function InterviewSetup() {
           guidance: state.guidance,
           questionIds: state.selectedQuestions.map((item) => item.id),
           questionTitles: state.selectedQuestions.map((item) => item.title),
-          trainingFocus: state.trainingFocus,
-          draftId: draftId ?? undefined,
+            trainingFocus: state.trainingFocus,
+            sourceSessionId: sourceSessionId ?? undefined,
+            draftId: draftId ?? undefined,
         }));
       }
     }, 200);
     return () => window.clearTimeout(timer);
-  }, [draftId, hydrated, parsedDocument, state]);
+  }, [draftId, hydrated, parsedDocument, sourceSessionId, state]);
 
   function update<K extends keyof SetupState>(key: K, value: SetupState[K]) {
     setState((current) => ({ ...current, [key]: value }));
+  }
+
+  function resumeDraft(draft: TrainingDraft) {
+    const document: ParsedDocument = {
+      filename: draft.resume_filename,
+      media_type: "text/plain",
+      text: draft.resume_text,
+      page_count: null,
+      warnings: ["已从训练草稿恢复提取文本；上传原文件未保留。"],
+    };
+    sessionStorage.removeItem(QUESTION_INTERVIEW_SELECTION_KEY);
+    setParsedDocument(document);
+    setDraftId(draft.id);
+    setSourceSessionId(draft.source_session_id);
+    setLinkedPlanItemId(draft.career_plan_item_id);
+    setParseStatus("success");
+    setParseError("");
+    setSaveError("");
+    setState({
+      resumeName: draft.resume_filename,
+      jd: draft.jd,
+      role: draft.target_role,
+      company: draft.target_company,
+      level: draft.target_level,
+      interviewRound: draft.interview_round,
+      interviewType: draft.interview_type,
+      mode: draft.mode,
+      duration: draft.duration_minutes,
+      pressure: draft.pressure_level,
+      depth: draft.depth_level,
+      guidance: draft.guidance_level,
+      selectedQuestions: draft.question_ids.map((id) => ({ id, title: "已选题目" })),
+      trainingFocus: draft.training_focus,
+    });
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   async function handleFile(file: File) {
@@ -186,10 +230,12 @@ export function InterviewSetup() {
       questionIds: state.selectedQuestions.map((item) => item.id),
       questionTitles: state.selectedQuestions.map((item) => item.title),
       trainingFocus: state.trainingFocus,
+      sourceSessionId: sourceSessionId ?? undefined,
     };
     sessionStorage.setItem(REVIEW_MATERIAL_STORAGE_KEY, JSON.stringify({ ...material, draftId: draftId ?? undefined }));
     try {
-      const payload = { resume_filename: parsedDocument.filename, resume_text: parsedDocument.text, jd: state.jd, target_role: state.role, target_company: state.company, target_level: state.level, interview_round: state.interviewRound, interview_type: state.interviewType, mode: state.mode, duration_minutes: state.duration, pressure_level: state.pressure, depth_level: state.depth, guidance_level: state.guidance, question_ids: state.selectedQuestions.map((item) => item.id), training_focus: state.trainingFocus };
+      let nextDraftId = draftId;
+      const payload = { resume_filename: parsedDocument.filename, resume_text: parsedDocument.text, jd: state.jd, target_role: state.role, target_company: state.company, target_level: state.level, interview_round: state.interviewRound, interview_type: state.interviewType, mode: state.mode, duration_minutes: state.duration, pressure_level: state.pressure, depth_level: state.depth, guidance_level: state.guidance, question_ids: state.selectedQuestions.map((item) => item.id), training_focus: state.trainingFocus, source_session_id: sourceSessionId, career_plan_item_id: linkedPlanItemId };
       let response = draftId
         ? await fetch(`/api/drafts/${encodeURIComponent(draftId)}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) })
         : await fetch("/api/drafts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
@@ -199,6 +245,7 @@ export function InterviewSetup() {
       if (response.ok) {
         const draft = await response.json() as { id?: string };
         if (!draft.id) throw new Error("训练草稿返回了无效编号");
+        nextDraftId = draft.id;
         setDraftId(draft.id);
         sessionStorage.setItem(REVIEW_MATERIAL_STORAGE_KEY, JSON.stringify({ ...material, draftId: draft.id }));
       } else if (response.status !== 401) {
@@ -206,7 +253,7 @@ export function InterviewSetup() {
         const detail = typeof payload === "object" && payload && "detail" in payload ? String(payload.detail) : "训练草稿保存失败";
         throw new Error(detail);
       }
-      router.push("/review");
+      router.push(nextDraftId ? `/review?draft=${encodeURIComponent(nextDraftId)}` : "/review");
     } catch (error) {
       setSaveError(error instanceof Error ? error.message : "训练草稿保存失败");
     } finally {
@@ -218,7 +265,10 @@ export function InterviewSetup() {
     <div className="min-h-screen bg-[var(--canvas)] text-[var(--ink)]">
       <SiteHeader active="new" />
       <main className="setup-page">
-        <SetupIntro parseStatus={parseStatus} />
+        <SetupIntro />
+        <DraftRecovery onResume={resumeDraft} />
+        <InterviewFlowProgress current={1} />
+        {sourceSessionId && <section className="retraining-brief"><div><span>弱项复训来源</span><h2>这一次不是重新做题，而是验证上次缺口</h2><p>{state.trainingFocus}</p></div><Link href={`/report?session=${sourceSessionId}`}>查看来源证据</Link></section>}
         <div className="setup-workspace">
         <section className="min-w-0">
           <div className="space-y-5">

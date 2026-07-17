@@ -26,6 +26,7 @@ export const careerProfileSchema = z.object({
 
 export const weeklyPlanItemSchema = z.object({
   id: z.string().uuid(),
+  plan_id: z.string().uuid().nullable(),
   scheduled_date: z.iso.date(),
   time_slot: timeSlotSchema,
   scheduled_time: z.string().nullable(),

@@ -14,6 +14,7 @@ from interview_copilot.domain.interviews import (
 )
 from interview_copilot.domain.retrieval import RagDocumentInput, RetrievedEvidence
 from interview_copilot.domain.training import TrainingContext
+from interview_copilot.infrastructure.career import WeeklyPlanItemRecord, WeeklyPlanRecord
 from interview_copilot.infrastructure.drafts import (
     TrainingDraftQuestionRecord,
     TrainingDraftRecord,
@@ -164,6 +165,7 @@ class InterviewPlanningService:
             depth_level=draft.depth_level,
             guidance_level=draft.guidance_level,
             training_focus=draft.training_focus,
+            source_session_id=draft.source_session_id,
             summary=plan.summary,
             plan=plan.model_dump(mode="json"),
             model=self._generator.model_name,
@@ -306,6 +308,19 @@ class InterviewPlanningService:
             record.status = "started"
             record.started_at = record.started_at or now
             record.active_question = record.active_question or plan.phases[0].questions[0].prompt
+            draft = self._session.get(TrainingDraftRecord, record.draft_id)
+            if draft and draft.career_plan_item_id:
+                plan_item = self._session.scalar(
+                    select(WeeklyPlanItemRecord)
+                    .join(WeeklyPlanRecord, WeeklyPlanRecord.id == WeeklyPlanItemRecord.plan_id)
+                    .where(
+                        WeeklyPlanItemRecord.id == draft.career_plan_item_id,
+                        WeeklyPlanRecord.user_id == user_id,
+                    )
+                )
+                if plan_item and plan_item.status == "pending":
+                    plan_item.status = "in_progress"
+                    plan_item.updated_at = now
             self._session.commit()
             self._session.refresh(record)
         return interview_runtime_data(record)
@@ -380,6 +395,7 @@ class InterviewPlanningService:
             depth_level=record.depth_level,
             guidance_level=record.guidance_level,
             training_focus=record.training_focus,
+            source_session_id=record.source_session_id,
             summary=record.summary,
             phases=[
                 InterviewPhaseSummary(

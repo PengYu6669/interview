@@ -93,6 +93,7 @@ class InterviewSessionData(BaseModel):
     depth_level: int = Field(ge=1, le=5)
     guidance_level: int = Field(ge=1, le=5)
     training_focus: str = Field(default="", max_length=500)
+    source_session_id: UUID | None = None
     summary: str
     phases: list[InterviewPhaseSummary]
     model: str
@@ -187,6 +188,8 @@ class InterviewHistoryItem(BaseModel):
     completed_at: datetime | None
     report_available: bool
     report_status: ReportGenerationStatus
+    report_summary: str | None = None
+    evidence_update: str | None = None
 
 
 class InterviewReportGenerationData(BaseModel):
@@ -349,6 +352,7 @@ class InterviewReportBoardSnapshot(BaseModel):
 
 class InterviewReportData(BaseModel):
     session_id: UUID
+    source_session_id: UUID | None = None
     target_role: str
     target_company: str
     target_level: TargetLevel

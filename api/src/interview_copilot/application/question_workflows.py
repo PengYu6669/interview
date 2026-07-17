@@ -137,29 +137,35 @@ class QuestionWorkflowService:
         if progress:
             progress("正在分析资料结构", 38, document.id)
         generated_batches = []
+        generated_warnings: list[str] = []
         for offset in range(0, len(sections), 4):
             batch = sections[offset : offset + 4]
+            batch_number = offset // 4 + 1
+            batch_count = max(1, (len(sections) + 3) // 4)
             if progress:
-                batch_number = offset // 4 + 1
-                batch_count = max(1, (len(sections) + 3) // 4)
                 progress(
                     f"正在生成第 {batch_number}/{batch_count} 批题目",
                     40 + round(42 * batch_number / batch_count),
                     document.id,
                 )
-            generated_batches.append(
-                await provider.generate_questions(
-                    batch,
-                    desired_questions=min(4, max(2, len(batch))),
+            try:
+                generated_batches.append(
+                    await provider.generate_questions(
+                        batch,
+                        desired_questions=min(4, max(2, len(batch))),
+                    )
                 )
-            )
+            except RuntimeError as exc:
+                generated_warnings.append(
+                    f"第 {batch_number}/{batch_count} 批题目生成失败，已跳过：{exc}"
+                )
         section_map = {item.key: item for item in sections}
         generated_questions = [
             item for batch in generated_batches for item in batch.questions
         ]
-        generated_warnings = [
+        generated_warnings.extend(
             warning for batch in generated_batches for warning in batch.warnings
-        ]
+        )
         details = []
         fingerprints: set[str] = set()
         covered_sections: set[str] = set()
@@ -217,7 +223,8 @@ class QuestionWorkflowService:
             await self.index_question(question)
             details.append(QuestionBankService(self._session)._detail(question, editable=True))
         if not details:
-            raise RuntimeError("资料没有生成可保存的题目")
+            failures = "；".join(generated_warnings[:3])
+            raise RuntimeError(f"资料没有生成可保存的题目：{failures}")
         uncovered = [item.key for item in sections if item.key not in covered_sections]
         document.section_count = len(sections)
         document.covered_section_count = len(covered_sections)

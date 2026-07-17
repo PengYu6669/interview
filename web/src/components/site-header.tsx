@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { AuthUser, authUserSchema } from "@/lib/auth";
+import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 export type ActivePage = "new" | "training" | "questions" | "history" | "profile" | "account";
 
@@ -47,7 +49,7 @@ export function SiteHeader({ active }: { active: ActivePage }) {
   return (
     <header className="site-header">
       <div className="site-header-inner">
-        <Link href="/" className="brand-link" aria-label="InterviewCopilot 首页">
+        <Link href={user ? "/training" : "/"} className="brand-link" aria-label={user ? "进入今日训练" : "InterviewCopilot 首页"}>
           <span className="brand-mark">面</span>
           <span>
             <span className="brand-name">InterviewCopilot</span>
@@ -60,7 +62,7 @@ export function SiteHeader({ active }: { active: ActivePage }) {
               <Icon size={16} />{label}
             </Link>
           ))}
-          {user ? <><Link className={`nav-user ${active === "account" ? "nav-user-active" : ""}`} href="/account"><UserRound size={15} />{user.username}</Link><button type="button" className="nav-button" onClick={logout} aria-label="退出登录"><LogOut size={16} /></button></> : <Link className="nav-link" href="/login"><UserRound size={16} />登录</Link>}
+          {user ? <><Link className={`nav-user ${active === "account" ? "nav-user-active" : ""}`} href="/account"><UserRound size={15} />{user.username}</Link><TooltipProvider delayDuration={300}><Tooltip><TooltipTrigger asChild><Button type="button" variant="ghost" size="icon" onClick={logout} aria-label="退出登录"><LogOut size={16} /></Button></TooltipTrigger><TooltipContent>退出登录</TooltipContent></Tooltip></TooltipProvider></> : <Button asChild variant="ghost" size="sm"><Link href="/login"><UserRound size={16} />登录</Link></Button>}
         </nav>
         <button className="mobile-menu-button" type="button" onClick={() => setOpen((value) => !value)} aria-expanded={open} aria-label={open ? "关闭导航" : "打开导航"}>
           {open ? <X size={20} /> : <Menu size={20} />}
@@ -73,7 +75,7 @@ export function SiteHeader({ active }: { active: ActivePage }) {
               <Icon size={17} />{label}
             </Link>
           ))}
-          {user ? <><Link className={active === "account" ? "nav-link-active" : ""} href="/account" onClick={() => setOpen(false)}><UserRound size={17} />账号与数据</Link><button type="button" className="nav-button" onClick={logout}><LogOut size={17} />退出登录</button></> : <Link href="/login" onClick={() => setOpen(false)}><UserRound size={17} />登录</Link>}
+          {user ? <><Link className={active === "account" ? "nav-link-active" : ""} href="/account" onClick={() => setOpen(false)}><UserRound size={17} />账号与数据</Link><Button className="w-full justify-start text-[var(--danger)]" variant="ghost" onClick={logout}><LogOut size={17} />退出登录</Button></> : <Link href="/login" onClick={() => setOpen(false)}><UserRound size={17} />登录</Link>}
         </nav>
       )}
     </header>

@@ -28,6 +28,7 @@ class WeeklyPlanItem(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     id: UUID
+    plan_id: UUID | None = None
     scheduled_date: date
     time_slot: Literal["morning", "afternoon", "evening", "flexible"] = "flexible"
     scheduled_time: time | None = None

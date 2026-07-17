@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from interview_copilot.api.auth import require_current_user
 from interview_copilot.application.drafts import DraftLockedError, DraftService
 from interview_copilot.domain.auth import UserProfile
-from interview_copilot.domain.draft import TrainingDraftData
+from interview_copilot.domain.draft import TrainingDraftData, TrainingDraftSummary
 from interview_copilot.domain.resume import ResumeProfile
 from interview_copilot.domain.training import InterviewRound, InterviewType, TargetLevel
 from interview_copilot.infrastructure.database import get_database_session
@@ -32,6 +32,8 @@ class DraftCreateRequest(BaseModel):
     guidance_level: int = Field(ge=1, le=5)
     question_ids: list[UUID] = Field(default_factory=list, max_length=20)
     training_focus: str = Field(default="", max_length=500)
+    source_session_id: UUID | None = None
+    career_plan_item_id: UUID | None = None
 
 
 class DraftUpdateRequest(BaseModel):
@@ -50,6 +52,8 @@ class DraftUpdateRequest(BaseModel):
     guidance_level: int | None = Field(default=None, ge=1, le=5)
     question_ids: list[UUID] | None = Field(default=None, max_length=20)
     training_focus: str | None = Field(default=None, max_length=500)
+    source_session_id: UUID | None = None
+    career_plan_item_id: UUID | None = None
     extraction: ResumeProfile | None = None
 
 
@@ -67,6 +71,14 @@ def create_draft(
         return service.create(user_id=user.id, data=request.model_dump())
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@router.get("", response_model=list[TrainingDraftSummary])
+def list_resumable_drafts(
+    user: Annotated[UserProfile, Depends(require_current_user)],
+    service: Annotated[DraftService, Depends(draft_service)],
+) -> list[TrainingDraftSummary]:
+    return service.list_resumable(user_id=user.id)
 
 
 @router.get("/{draft_id}", response_model=TrainingDraftData)

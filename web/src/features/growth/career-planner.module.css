@@ -175,11 +175,7 @@
 
 .dangerButton,
 .secondaryButton,
-.addButton,
-.startButton,
-.completeButton,
-.moveButton,
-.skipButton {
+.addButton {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -611,107 +607,11 @@
   white-space: nowrap;
 }
 
-.startButton,
-.completeButton {
-  min-width: 0;
-  min-height: 40px;
-  padding: 0 12px;
-  white-space: nowrap;
-}
-
-.startButton {
-  border: 0;
-  background: var(--ink);
-  color: #fff;
-}
-
-.completeButton {
-  border: 1px solid color-mix(in srgb, var(--task-accent) 45%, #d8dddf);
-  background: rgb(255 255 255 / 72%);
-  color: var(--task-label, var(--ink));
-}
-
 .detailPrimaryActions {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 8px;
   margin-top: 14px;
-}
-
-.detailsBackdrop {
-  position: fixed;
-  z-index: 100;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  background: rgb(17 24 39 / 42%);
-  padding: 24px;
-}
-
-.detailsPanel {
-  width: min(580px, 100%);
-  max-height: min(760px, calc(100vh - 48px));
-  overflow-y: auto;
-  border: 1px solid #cfd7da;
-  border-radius: 7px;
-  background: #fff;
-  box-shadow: 0 20px 55px rgb(15 23 42 / 24%);
-  padding: 18px;
-}
-
-.detailsPanel > header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
-  border-bottom: 1px solid var(--line);
-  padding-bottom: 13px;
-}
-
-.detailsPanel > header span,
-.detailsPanel > section > span {
-  color: var(--muted);
-  font-size: 10px;
-  font-weight: 700;
-}
-
-.detailsPanel h4 {
-  margin-top: 2px;
-  font-size: 17px;
-}
-
-.detailsPanel > header small {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  margin-top: 5px;
-  color: var(--muted);
-  font-size: 11px;
-}
-
-.detailsPanel > header button {
-  display: grid;
-  width: 32px;
-  height: 32px;
-  place-items: center;
-  border: 0;
-  border-radius: 4px;
-  background: #f2f4f5;
-  color: var(--muted);
-}
-
-.detailsPanel > section {
-  margin-top: 14px;
-  border-left: 3px solid var(--task-accent, var(--accent));
-  background: #f7f9f9;
-  padding: 9px 11px;
-}
-
-.detailsPanel > section p {
-  margin-top: 3px;
-  color: #4f5d5b;
-  font-size: 12px;
-  line-height: 1.65;
 }
 
 .taskControls {
@@ -735,33 +635,6 @@
 
 .questionSelect {
   grid-column: 1 / -1;
-}
-
-.detailsPanel > footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-top: 16px;
-  border-top: 1px solid var(--line);
-  padding-top: 14px;
-}
-
-.moveButton,
-.skipButton {
-  min-height: 36px;
-  padding: 0 11px;
-}
-
-.moveButton {
-  border: 1px solid var(--line);
-  background: #fff;
-  color: var(--ink);
-}
-
-.skipButton {
-  border: 1px solid #e1c3bf;
-  background: #fff7f5;
-  color: #91453d;
 }
 
 .scheduleFooter {
@@ -976,18 +849,6 @@
     text-align: center;
   }
 
-  .detailsBackdrop {
-    align-items: end;
-    padding: 0;
-  }
-
-  .detailsPanel {
-    width: 100%;
-    max-height: calc(100vh - 48px);
-    border-radius: 7px 7px 0 0;
-    padding: 16px;
-  }
-
   .taskControls {
     grid-template-columns: 1fr;
   }
@@ -998,11 +859,6 @@
 
   .questionSelect {
     grid-column: auto;
-  }
-
-  .detailsPanel > footer {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
   }
 
   .slotField > div {

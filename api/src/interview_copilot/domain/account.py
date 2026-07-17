@@ -32,6 +32,7 @@ class ExportDraft(BaseModel):
     depth_level: int
     guidance_level: int
     training_focus: str
+    source_session_id: UUID | None
     extraction: dict[str, Any] | None
     question_ids: list[UUID]
     created_at: datetime
@@ -103,6 +104,7 @@ class ExportInterviewSession(BaseModel):
     depth_level: int
     guidance_level: int
     training_focus: str
+    source_session_id: UUID | None
     summary: str
     plan: dict[str, Any]
     model: str

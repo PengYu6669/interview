@@ -137,6 +137,7 @@ async def test_history_and_idempotent_evidence_report() -> None:
         assert history[0].turn_count == 1
         assert history[0].status == "ended"
         assert history[0].report_status == "not_started"
+        assert history[0].report_summary is None
         assert pending_status.status == "not_started"
         assert first.content.evidence_coverage == 35
         assert first.turn_count == 1
@@ -151,7 +152,10 @@ async def test_history_and_idempotent_evidence_report() -> None:
         assert first.interview_round == "first"
         assert first.interview_type == "comprehensive"
         assert generator.calls == 1
-        assert service.history(user_id=user.id)[0].report_available is True
+        reviewed = service.history(user_id=user.id)[0]
+        assert reviewed.report_available is True
+        assert reviewed.report_summary == "本场中途结束，报告只覆盖已回答内容。"
+        assert reviewed.evidence_update == "改进 · 量化表达：缺少结果指标"
         assert service.generation_status(user_id=user.id, session_id=interview.id).status == "ready"
 
 

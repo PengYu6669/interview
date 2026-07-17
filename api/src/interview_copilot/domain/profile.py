@@ -26,6 +26,7 @@ class AbilityMatrixItem(BaseModel):
     report_count: int = Field(ge=1)
     trend: int = Field(ge=-100, le=100)
     source_session_id: UUID
+    evidence_quote: str = Field(min_length=1, max_length=500)
     training_focus: str = Field(min_length=1, max_length=500)
 
 

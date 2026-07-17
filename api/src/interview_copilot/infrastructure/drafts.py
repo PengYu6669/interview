@@ -28,6 +28,12 @@ class TrainingDraftRecord(Base):
     depth_level: Mapped[int] = mapped_column(Integer, default=4)
     guidance_level: Mapped[int] = mapped_column(Integer, default=2)
     training_focus: Mapped[str] = mapped_column(String(500), default="")
+    source_session_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("interview_sessions.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    career_plan_item_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("weekly_plan_items.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     extraction: Mapped[dict | None] = mapped_column(
         JSON().with_variant(JSONB, "postgresql"), nullable=True
     )

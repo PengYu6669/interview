@@ -1,4 +1,4 @@
-import { ArrowRight, CheckCircle2, FileSearch, Quote, ShieldCheck, Target } from "lucide-react";
+import { ArrowRight, Bot, Check, CheckCircle2, FileSearch, ListChecks, Quote, SearchCheck, ShieldCheck, Target } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 
@@ -19,7 +19,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ a
       <header className="landing-header">
         <Link href="/" className="brand-link" aria-label="InterviewCopilot 首页"><span className="brand-mark">面</span><span><span className="brand-name">InterviewCopilot</span><span className="brand-subtitle">面壁 · 技术面试训练</span></span></Link>
         <nav aria-label="首页导航"><a href="#how-it-works">如何工作</a><a href="#evidence">证据化复盘</a></nav>
-        <div className="landing-auth">{user ? <><Link href="/account" className="landing-login">{user.username}</Link><Link href="/setup" className="primary-cta">继续训练 <ArrowRight size={15} /></Link></> : <><Link href="/login" className="landing-login">登录</Link><Link href="/register" className="primary-cta">免费开始 <ArrowRight size={15} /></Link></>}</div>
+        <div className="landing-auth">{user ? <><Link href="/account" className="landing-login">{user.username}</Link><Link href="/training" className="primary-cta">今日训练 <ArrowRight size={15} /></Link></> : <><Link href="/login" className="landing-login">登录</Link><Link href="/register" className="primary-cta">免费开始 <ArrowRight size={15} /></Link></>}</div>
       </header>
 
       <main>
@@ -28,12 +28,20 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ a
             <p className="setup-kicker"><span />针对真实经历的技术面试训练</p>
             <h1>不是再做一套题，<br />而是练会讲清你的项目</h1>
             <p>上传简历和目标岗位，先校正 AI 对你的理解，再进入一场接近真实视频会议节奏的模拟技术面试。</p>
-            <div className="landing-hero-actions">{user ? <><Link href="/setup" className="landing-primary">开始一场新训练 <ArrowRight size={17} /></Link><Link href="/history" className="secondary-button">继续上次训练</Link></> : <><Link href="/register" className="landing-primary">创建训练账号 <ArrowRight size={17} /></Link><Link href="/login" className="secondary-button">已有账号，登录</Link></>}</div>
+            <div className="landing-hero-actions">{user ? <><Link href="/training" className="landing-primary">查看今日教练建议 <ArrowRight size={17} /></Link><Link href="/history" className="secondary-button">回看成长档案</Link></> : <><Link href="/register" className="landing-primary">创建训练账号 <ArrowRight size={17} /></Link><Link href="/login" className="secondary-button">已有账号，登录</Link></>}</div>
             <div className="landing-trust"><span><ShieldCheck size={14} />材料默认保留 7 天</span><span><CheckCircle2 size={14} />评价附带回答证据</span></div>
           </div>
           <div className="landing-product-shot">
             <div className="product-shot-bar"><span><i />模拟面试进行中</span><small>真实产品界面</small></div>
             <Image src="/interview-room-preview.png" alt="InterviewCopilot 模拟视频面试室界面" width={1280} height={800} priority />
+            <aside className="landing-agent-trace" aria-label="AI 面试教练工作轨迹示意">
+              <header><Bot size={17} /><div><span>AI 工作轨迹</span><strong>正在形成追问策略</strong></div><small>LIVE</small></header>
+              <ol>
+                <li className="done"><Check size={13} /><span>读取简历与 JD</span><small>完成</small></li>
+                <li className="active"><SearchCheck size={13} /><span>匹配回答证据</span><small>进行中</small></li>
+                <li><ListChecks size={13} /><span>更新追问计划</span><small>下一步</small></li>
+              </ol>
+            </aside>
           </div>
         </section>
 

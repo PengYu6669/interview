@@ -4,7 +4,7 @@ import { z } from "zod";
 import { API_BASE_URL, readJsonResponse, rejectCrossOrigin, sessionToken } from "@/lib/auth-server";
 import { INTERVIEW_TYPE_VALUES } from "@/lib/training-context";
 
-const schema = z.object({ resume_filename: z.string().max(255), resume_text: z.string().min(1).max(80_000), jd: z.string().max(30_000), target_role: z.string().min(1).max(150), target_company: z.string().max(100).default(""), target_level: z.enum(["intern", "campus", "mid", "senior"]).default("campus"), interview_round: z.enum(["first", "second", "final", "manager"]).default("first"), interview_type: z.enum(INTERVIEW_TYPE_VALUES).default("comprehensive"), mode: z.enum(["relaxed", "normal", "stress"]), duration_minutes: z.number().int().min(1).max(180), pressure_level: z.number().int().min(1).max(5), depth_level: z.number().int().min(1).max(5), guidance_level: z.number().int().min(1).max(5), question_ids: z.array(z.string().uuid()).max(20).default([]), training_focus: z.string().max(500).default("") });
+const schema = z.object({ resume_filename: z.string().max(255), resume_text: z.string().min(1).max(80_000), jd: z.string().max(30_000), target_role: z.string().min(1).max(150), target_company: z.string().max(100).default(""), target_level: z.enum(["intern", "campus", "mid", "senior"]).default("campus"), interview_round: z.enum(["first", "second", "final", "manager"]).default("first"), interview_type: z.enum(INTERVIEW_TYPE_VALUES).default("comprehensive"), mode: z.enum(["relaxed", "normal", "stress"]), duration_minutes: z.number().int().min(1).max(180), pressure_level: z.number().int().min(1).max(5), depth_level: z.number().int().min(1).max(5), guidance_level: z.number().int().min(1).max(5), question_ids: z.array(z.string().uuid()).max(20).default([]), training_focus: z.string().max(500).default(""), source_session_id: z.string().uuid().nullable().optional(), career_plan_item_id: z.string().uuid().nullable().optional() });
 
 export async function POST(request: NextRequest) {
   const rejected = rejectCrossOrigin(request);
@@ -21,5 +21,17 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error("训练草稿保存失败", { cause: error });
     return NextResponse.json({ detail: "训练草稿暂时无法保存" }, { status: 502 });
+  }
+}
+
+export async function GET() {
+  const token = await sessionToken();
+  if (!token) return NextResponse.json([], { status: 200 });
+  try {
+    const response = await fetch(`${API_BASE_URL}/v1/drafts`, { headers: { Authorization: `Bearer ${token}` }, cache: "no-store", signal: AbortSignal.timeout(10_000) });
+    return NextResponse.json(await readJsonResponse(response), { status: response.status });
+  } catch (error) {
+    console.error("训练草稿列表读取失败", { cause: error });
+    return NextResponse.json({ detail: "训练草稿暂时无法读取" }, { status: 502 });
   }
 }

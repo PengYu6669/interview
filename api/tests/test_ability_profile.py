@@ -15,6 +15,7 @@ from interview_copilot.domain.interviews import (
     InterviewReportFinding,
     InterviewSkillScore,
 )
+from interview_copilot.infrastructure.career import WeeklyPlanItemRecord  # noqa: F401
 from interview_copilot.infrastructure.coaching import (
     CoachingSessionRecord,
     CoachingTurnRecord,
@@ -57,6 +58,7 @@ def test_builds_kline_and_weighted_skill_matrix_from_reports() -> None:
         assert profile.skills[0].trend == 20
         assert 55 < profile.skills[0].score < 75
         assert profile.skills[0].training_focus == "补充流量基线和容量计算。"
+        assert profile.skills[0].evidence_quote == "我根据流量做了扩容"
         assert profile.skills[0].source_session_id == profile.kline[-1].session_id
         assert profile.next_training == "练习容量估算和故障降级。"
 

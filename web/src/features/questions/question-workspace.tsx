@@ -20,7 +20,7 @@ function fallbackMarkdown(question: QuestionDetail) {
   return `## 题目\n\n${question.prompt}\n\n## 考察意图\n\n${question.intent}\n\n## 回答框架\n\n${outline}\n\n## 常见误区\n\n${mistakes}`;
 }
 
-export function QuestionWorkspace({ slug }: { slug: string }) {
+export function QuestionWorkspace({ slug, planId, planItemId }: { slug: string; planId?: string; planItemId?: string }) {
   const [question, setQuestion] = useState<QuestionDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -120,7 +120,7 @@ export function QuestionWorkspace({ slug }: { slug: string }) {
 
       <aside className="question-learning-rail">
         <section className="question-ai-panel"><div className="panel-heading"><div className="ai-avatar"><Bot size={17} /></div><div><h2>基于资料问 AI</h2><p>连续对话，每轮回答都重新检索当前题目资料</p></div>{messages.length > 0 && <button className="new-question-chat" type="button" disabled={chatting} onClick={() => { setMessages([]); setConversationId(null); setChatError(""); }} title="开始新对话"><RefreshCw size={14} /></button>}</div>{chatAccess === false ? <div className="question-chat-login"><MessageSquareText size={18} /><strong>登录后开始连续问答</strong><p>对话和引用会保存到当前账号。</p><Link className="primary-cta" href={`/login?next=${encodeURIComponent(`/questions/${slug}`)}`}>登录后继续</Link></div> : <><div className="question-chat-messages" aria-live="polite">{messages.length ? messages.map((message, index) => <ChatMessage message={message} key={`${message.created_at}-${index}`} />) : <div className="question-chat-empty"><MessageSquareText size={18} /><span>围绕这道题继续追问实现细节、回答结构或证据不足之处</span></div>}{chatting && <div className="question-chat-thinking"><LoaderCircle className="spin" size={15} />正在检索资料并组织回答</div>}</div><form onSubmit={ask}><label><span className="sr-only">向 AI 提问</span><textarea value={chatInput} onChange={(event) => setChatInput(event.target.value)} maxLength={4_000} placeholder="继续追问这道题…" /></label><button type="submit" disabled={chatting || !chatInput.trim()}>{chatting ? <LoaderCircle className="spin" size={16} /> : <Send size={16} />}发送</button></form>{chatError && <p className="chat-error" role="alert">{chatError}</p>}</>}</section>
-        <StudyActions questionId={question.id} />
+        <StudyActions questionId={question.id} planId={planId} planItemId={planItemId} />
       </aside>
     </div>
   </main>;

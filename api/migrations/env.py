@@ -26,6 +26,9 @@ from interview_copilot.infrastructure.interviews import (  # noqa: F401
 from interview_copilot.infrastructure.jobs import AiJobRecord  # noqa: F401
 from interview_copilot.infrastructure.questions import QuestionRecord  # noqa: F401
 from interview_copilot.infrastructure.rag import RagDocumentRecord  # noqa: F401
+from interview_copilot.infrastructure.resume_extractions import (  # noqa: F401
+    ResumeExtractionCacheRecord,
+)
 
 config = context.config
 if config.config_file_name:

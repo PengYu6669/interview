@@ -29,6 +29,8 @@ export const interviewHistorySchema: z.ZodType<InterviewHistoryItem[]> = z.array
   completed_at: z.string().nullable(),
   report_available: z.boolean(),
   report_status: z.enum(["not_started", "generating", "ready", "failed"]),
+  report_summary: z.string().nullable().optional(),
+  evidence_update: z.string().nullable().optional(),
 }));
 
 export const interviewReportGenerationSchema: z.ZodType<InterviewReportGenerationData> = z.object({
@@ -94,6 +96,7 @@ export const interviewReportReviewSchema: z.ZodType<InterviewReportReviewData> =
 
 export const interviewReportSchema: z.ZodType<InterviewReportData> = z.object({
   session_id: z.string().uuid(),
+  source_session_id: z.string().uuid().nullable().optional(),
   target_role: z.string(),
   target_company: z.string(),
   target_level: z.enum(["intern", "campus", "mid", "senior"]),

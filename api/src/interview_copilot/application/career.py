@@ -626,6 +626,7 @@ class CareerService:
     def _item(self, record: WeeklyPlanItemRecord) -> WeeklyPlanItem:
         return WeeklyPlanItem(
             id=record.id,
+            plan_id=record.plan_id,
             scheduled_date=record.scheduled_date,
             time_slot=record.time_slot,  # type: ignore[arg-type]
             scheduled_time=record.scheduled_time,

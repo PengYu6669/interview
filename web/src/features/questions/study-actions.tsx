@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 
 import { userQuestionStateSchema, type UserQuestionState } from "@/lib/questions";
 
-export function StudyActions({ questionId }: { questionId: string }) {
+export function StudyActions({ questionId, planId, planItemId }: { questionId: string; planId?: string; planItemId?: string }) {
   const [state, setState] = useState<UserQuestionState>({ status: "unseen", bookmarked: false, note: "", review_interval_days: 0, review_streak: 0, last_reviewed_at: null, review_due_at: null });
   const [loggedIn, setLoggedIn] = useState<boolean | null>(null);
   const [saving, setSaving] = useState(false);
@@ -26,7 +26,13 @@ export function StudyActions({ questionId }: { questionId: string }) {
       const payload: unknown = await response.json();
       if (!response.ok) throw new Error(typeof payload === "object" && payload && "detail" in payload ? String(payload.detail) : "保存失败，请稍后重试");
       setState(userQuestionStateSchema.parse(payload));
-      setMessage("学习状态已保存");
+      if (planId && planItemId && state.status !== "unseen") {
+        const planResponse = await fetch(`/api/career/weekly-plan/${encodeURIComponent(planId)}/items/${encodeURIComponent(planItemId)}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "completed" }) });
+        if (!planResponse.ok) throw new Error("学习状态已保存，但本周计划同步失败");
+        setMessage("学习状态已保存，本周计划已完成");
+      } else {
+        setMessage("学习状态已保存");
+      }
     } catch (caught) {
       setMessage(caught instanceof Error ? caught.message : "保存失败，请稍后重试");
     } finally {

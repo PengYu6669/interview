@@ -47,6 +47,8 @@ interface TargetSectionProps {
 }
 
 export function TargetSection(props: TargetSectionProps) {
+  const typeLabel = INTERVIEW_TYPE_OPTIONS.find((item) => item.value === props.interviewType)?.label ?? "综合模拟";
+  const modeLabel = MODE_OPTIONS.find((item) => item.value === props.mode)?.label ?? "标准模式";
   return (
     <section className="form-section" aria-labelledby="target-title">
       <SectionHeading
@@ -56,7 +58,7 @@ export function TargetSection(props: TargetSectionProps) {
         titleId="target-title"
       />
 
-      <div className="target-context-grid">
+      <div className="target-context-essential">
         <ContextInput
           id="role"
           label="目标岗位"
@@ -66,6 +68,16 @@ export function TargetSection(props: TargetSectionProps) {
           placeholder="例如：Java 后端工程师"
           onChange={props.onRoleChange}
         />
+      </div>
+
+      <div className="setup-duration-row">
+        <div><span className="field-label">预计时长</span><div className="duration-control"><Clock3 size={17} />{DURATION_OPTIONS.map((minutes) => <button key={minutes} type="button" className={props.duration === minutes ? "duration-active" : ""} onClick={() => props.onDurationChange(minutes)}>{minutes} 分钟</button>)}</div></div>
+      </div>
+
+      <details className="setup-advanced">
+        <summary><div><strong>调整训练方式与面试强度</strong><span>{typeLabel} · {modeLabel} · {props.duration} 分钟</span></div><ChevronDown size={17} /></summary>
+        <div className="setup-advanced-body">
+        <div className="target-context-grid">
         <ContextInput
           id="company"
           label="目标公司（可选）"
@@ -91,7 +103,7 @@ export function TargetSection(props: TargetSectionProps) {
           options={ROUND_OPTIONS}
           onChange={(value) => props.onInterviewRoundChange(value as InterviewRound)}
         />
-      </div>
+        </div>
 
       <div className="setup-subsection">
         <div className="setup-subsection-title"><Target size={16} /><div><strong>本次训练类型</strong><span>决定主要考察范围，具体问题仍由材料和 JD 生成</span></div></div>
@@ -136,11 +148,9 @@ export function TargetSection(props: TargetSectionProps) {
         </details>
       </div>
 
-      <div className="setup-duration-row">
-        <div><span className="field-label">预计时长</span><div className="duration-control"><Clock3 size={17} />{DURATION_OPTIONS.map((minutes) => <button key={minutes} type="button" className={props.duration === minutes ? "duration-active" : ""} onClick={() => props.onDurationChange(minutes)}>{minutes} 分钟</button>)}</div></div>
-      </div>
-
       <label className="training-focus-field"><span className="field-label">本次复训重点（可选）</span><textarea value={props.trainingFocus} maxLength={500} onChange={(event) => props.onTrainingFocusChange(event.target.value)} placeholder="例如：项目贡献讲得太泛，需要补充个人职责、量化结果和技术取舍" /><small>{props.trainingFocus.length} / 500</small></label>
+        </div>
+      </details>
     </section>
   );
 }

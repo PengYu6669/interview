@@ -410,6 +410,82 @@ def test_generated_questions_keep_only_exact_source_evidence() -> None:
     assert "编造证据" in result.warnings[0]
 
 
+@pytest.mark.asyncio
+async def test_generation_repairs_non_exact_evidence_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    provider = DeepSeekQuestionBankProvider(
+        api_key="test-key",
+        base_url="https://example.invalid",
+        model="test-model",
+    )
+    section = QuestionGenerationSection(
+        key="section-0",
+        content="系统使用令牌桶限制突发流量。",
+    )
+    base = {
+        "title": "限流策略",
+        "prompt": "如何限制突发流量？",
+        "difficulty": "进阶",
+        "question_type": "取舍",
+        "framework": "prep",
+        "intent": "考察限流设计",
+        "answer_outline": ["说明目标", "解释方案"],
+        "common_mistakes": ["忽略突发流量"],
+        "topics": ["限流"],
+        "content_markdown": "旧的错误引用",
+    }
+    responses = iter(
+        [
+            json.dumps(
+                {
+                    "questions": [
+                        {
+                            **base,
+                            "evidence": [
+                                {
+                                    "section_key": "section-0",
+                                    "quote": "令牌桶能够限制流量",
+                                }
+                            ],
+                        }
+                    ]
+                },
+                ensure_ascii=False,
+            ),
+            json.dumps(
+                {
+                    "questions": [
+                        {
+                            **base,
+                            "content_markdown": "",
+                            "evidence": [
+                                {
+                                    "section_key": "section-0",
+                                    "quote": "使用令牌桶限制突发流量",
+                                }
+                            ],
+                        }
+                    ]
+                },
+                ensure_ascii=False,
+            ),
+        ]
+    )
+
+    async def fake_chat(prompt: str) -> str:
+        del prompt
+        return next(responses)
+
+    monkeypatch.setattr(provider, "_chat", fake_chat)
+
+    result = await provider.generate_questions([section], desired_questions=1)
+
+    assert result.questions[0].evidence[0].quote == "使用令牌桶限制突发流量"
+    assert "使用令牌桶限制突发流量" in result.questions[0].content_markdown
+    assert "旧的错误引用" not in result.questions[0].content_markdown
+
+
 def test_generated_questions_accept_fenced_json_and_keep_valid_items() -> None:
     valid = {
         "title": "解释限流策略",

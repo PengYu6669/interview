@@ -25,6 +25,7 @@ export const abilityProfileSchema: z.ZodType<AbilityProfileData> = z.object({
     report_count: z.number().int(),
     trend: z.number().int(),
     source_session_id: z.string().uuid(),
+    evidence_quote: z.string(),
     training_focus: z.string(),
   })),
   next_training: z.string().nullable(),

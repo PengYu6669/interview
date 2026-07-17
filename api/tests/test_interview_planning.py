@@ -1,4 +1,4 @@
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from uuid import UUID, uuid4
 
 import pytest
@@ -24,6 +24,7 @@ from interview_copilot.domain.retrieval import (
     RagDocumentInput,
     RetrievedEvidence,
 )
+from interview_copilot.infrastructure.career import WeeklyPlanItemRecord, WeeklyPlanRecord
 from interview_copilot.infrastructure.database import Base, UserRecord
 from interview_copilot.infrastructure.drafts import TrainingDraftRecord
 from interview_copilot.infrastructure.interviews import (
@@ -295,10 +296,41 @@ async def test_persists_idempotent_answers_and_advances_questions() -> None:
     Base.metadata.create_all(engine)
     with Session(engine, expire_on_commit=False) as session:
         owner = _create_user(session, "owner")
+        now = datetime.now(UTC)
+        weekly_plan = WeeklyPlanRecord(
+            user_id=owner.id,
+            week_start=date(2026, 7, 13),
+            goal="完成模拟面试",
+            status="active",
+            basis={},
+            confirmed_at=now,
+            created_at=now,
+            updated_at=now,
+        )
+        plan_item = WeeklyPlanItemRecord(
+            plan=weekly_plan,
+            scheduled_date=date(2026, 7, 17),
+            estimated_minutes=30,
+            task_type="mock_interview",
+            title="项目深挖模拟面试",
+            reason="验证项目表达",
+            completion_criteria="完成整场面试",
+            status="pending",
+            origin="ai",
+            position=0,
+            created_at=now,
+            updated_at=now,
+        )
+        session.add(weekly_plan)
+        session.flush()
         draft = _create_draft(session, owner.id, extraction={"schema_version": "test"})
+        draft.career_plan_item_id = plan_item.id
+        session.commit()
         planning = _planning_service(session, FakeGenerator())
         created = await planning.create(user_id=owner.id, draft_id=draft.id)
         planning.start(user_id=owner.id, session_id=created.id)
+        session.refresh(plan_item)
+        assert plan_item.status == "in_progress"
         decider = FakeDecider()
         runtime = InterviewRuntimeService(session, decider)
 
@@ -392,6 +424,9 @@ async def test_persists_idempotent_answers_and_advances_questions() -> None:
         persisted_session = session.get(InterviewSessionRecord, created.id)
         assert persisted_session and persisted_session.status == "completed"
         assert persisted_session.completed_at is not None
+        session.refresh(plan_item)
+        assert plan_item.status == "completed"
+        assert weekly_plan.status == "completed"
         assert session.query(InterviewTurnRecord).count() == 5
         calls_after_completion = decider.calls
         with pytest.raises(ValueError, match="不能提交回答"):

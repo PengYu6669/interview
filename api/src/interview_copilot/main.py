@@ -10,8 +10,9 @@ from redis import Redis
 from redis.exceptions import RedisError
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import Session
 
-from .api.auth import require_current_user
+from .api.auth import optional_current_user, require_current_user
 from .api.auth import router as auth_router
 from .api.boards import router as boards_router
 from .api.career import router as career_router
@@ -33,13 +34,14 @@ from .document_parser import (
 )
 from .domain.auth import UserProfile
 from .domain.resume import ResumeExtractionResult
-from .infrastructure.database import engine
+from .infrastructure.database import engine, get_database_session
 from .infrastructure.request_observability import (
     RequestObservabilityMiddleware,
     http_exception_response,
     unexpected_exception_response,
     validation_exception_response,
 )
+from .infrastructure.resume_extractions import SqlAlchemyResumeExtractionCache
 from .providers.baidu_ocr import BaiduOCR, BaiduOCRConfig, BaiduOCRError
 from .providers.deepseek import DeepSeekResumeExtractor
 from .tts.xfyun import XfyunTTS, XfyunTTSConfig, XfyunTTSError
@@ -89,7 +91,9 @@ class ResumeExtractionRequest(BaseModel):
     target_role: str = Field(min_length=1, max_length=150)
 
 
-async def get_resume_extraction_use_case() -> AsyncIterator[ExtractResumeProfile]:
+async def get_resume_extraction_use_case(
+    session: Annotated[Session, Depends(get_database_session)],
+) -> AsyncIterator[ExtractResumeProfile]:
     try:
         provider = DeepSeekResumeExtractor(
             api_key=settings.deepseek_api_key,
@@ -99,7 +103,11 @@ async def get_resume_extraction_use_case() -> AsyncIterator[ExtractResumeProfile
     except ValueError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     try:
-        yield ExtractResumeProfile(provider, model_name=settings.deepseek_model)
+        yield ExtractResumeProfile(
+            provider,
+            model_name=settings.deepseek_model,
+            cache=SqlAlchemyResumeExtractionCache(session),
+        )
     finally:
         await provider.aclose()
 
@@ -205,12 +213,14 @@ async def synthesize_speech(
 async def extract_resume_profile(
     request: ResumeExtractionRequest,
     use_case: Annotated[ExtractResumeProfile, Depends(get_resume_extraction_use_case)],
+    user: Annotated[UserProfile | None, Depends(optional_current_user)],
 ) -> ResumeExtractionResult:
     try:
         return await use_case.execute(
             resume_text=request.resume_text,
             jd=request.jd,
             target_role=request.target_role,
+            user_id=user.id if user else None,
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc

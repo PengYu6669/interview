@@ -390,7 +390,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /** List Resumable Drafts */
+        get: operations["list_resumable_drafts_v1_drafts_get"];
         put?: never;
         /** Create Draft */
         post: operations["create_draft_v1_drafts_post"];
@@ -1014,6 +1015,8 @@ export interface components {
              * Format: uuid
              */
             source_session_id: string;
+            /** Evidence Quote */
+            evidence_quote: string;
             /** Training Focus */
             training_focus: string;
         };
@@ -2092,6 +2095,10 @@ export interface components {
              * @default
              */
             training_focus: string;
+            /** Source Session Id */
+            source_session_id?: string | null;
+            /** Career Plan Item Id */
+            career_plan_item_id?: string | null;
         };
         /** DraftUpdateRequest */
         DraftUpdateRequest: {
@@ -2125,6 +2132,10 @@ export interface components {
             question_ids?: string[] | null;
             /** Training Focus */
             training_focus?: string | null;
+            /** Source Session Id */
+            source_session_id?: string | null;
+            /** Career Plan Item Id */
+            career_plan_item_id?: string | null;
             extraction?: components["schemas"]["ResumeProfile"] | null;
         };
         /** EducationExperience */
@@ -2207,6 +2218,8 @@ export interface components {
             guidance_level: number;
             /** Training Focus */
             training_focus: string;
+            /** Source Session Id */
+            source_session_id: string | null;
             /** Extraction */
             extraction: {
                 [key: string]: unknown;
@@ -2340,6 +2353,8 @@ export interface components {
             guidance_level: number;
             /** Training Focus */
             training_focus: string;
+            /** Source Session Id */
+            source_session_id: string | null;
             /** Summary */
             summary: string;
             /** Plan */
@@ -2660,6 +2675,10 @@ export interface components {
              * @enum {string}
              */
             report_status: "not_started" | "generating" | "ready" | "failed";
+            /** Report Summary */
+            report_summary?: string | null;
+            /** Evidence Update */
+            evidence_update?: string | null;
         };
         /** InterviewInterruptionRequest */
         InterviewInterruptionRequest: {
@@ -2732,6 +2751,8 @@ export interface components {
              * Format: uuid
              */
             session_id: string;
+            /** Source Session Id */
+            source_session_id?: string | null;
             /** Target Role */
             target_role: string;
             /** Target Company */
@@ -3060,6 +3081,8 @@ export interface components {
              * @default
              */
             training_focus: string;
+            /** Source Session Id */
+            source_session_id?: string | null;
             /** Summary */
             summary: string;
             /** Phases */
@@ -3503,12 +3526,49 @@ export interface components {
              * @default
              */
             training_focus: string;
+            /** Source Session Id */
+            source_session_id?: string | null;
+            /** Career Plan Item Id */
+            career_plan_item_id?: string | null;
             extraction?: components["schemas"]["ResumeProfile"] | null;
             /**
              * Created At
              * Format: date-time
              */
             created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+        };
+        /** TrainingDraftSummary */
+        TrainingDraftSummary: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Resume Filename */
+            resume_filename: string;
+            /** Target Role */
+            target_role: string;
+            /**
+             * Target Company
+             * @default
+             */
+            target_company: string;
+            /**
+             * Interview Type
+             * @default comprehensive
+             * @enum {string}
+             */
+            interview_type: "comprehensive" | "project" | "technical" | "system_design" | "coding" | "behavioral" | "weak_area";
             /**
              * Updated At
              * Format: date-time
@@ -3725,6 +3785,8 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            /** Plan Id */
+            plan_id?: string | null;
             /**
              * Scheduled Date
              * Format: date
@@ -4726,6 +4788,37 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_resumable_drafts_v1_drafts_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrainingDraftSummary"][];
+                };
             };
             /** @description Validation Error */
             422: {

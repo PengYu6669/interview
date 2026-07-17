@@ -19,6 +19,7 @@ export const interviewSessionSchema: z.ZodType<InterviewSessionData> = z.object(
   depth_level: z.number().int().min(1).max(5),
   guidance_level: z.number().int().min(1).max(5),
   training_focus: z.string(),
+  source_session_id: z.string().uuid().nullable().optional(),
   summary: z.string(),
   phases: z.array(z.object({
     name: z.string(),

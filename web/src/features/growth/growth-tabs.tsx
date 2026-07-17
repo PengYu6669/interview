@@ -1,5 +1,5 @@
 import { BarChart3, CalendarCheck2, History } from "lucide-react";
-import Link from "next/link";
+import { SegmentedNav } from "@/components/ui/segmented-nav";
 
 export type GrowthView = "records" | "capabilities" | "plan";
 
@@ -10,8 +10,5 @@ const tabs: Array<{ view: GrowthView; label: string; icon: typeof History }> = [
 ];
 
 export function GrowthTabs({ active }: { active: GrowthView }) {
-  return <nav className="growth-tabs" aria-label="成长档案视图">{tabs.map((tab) => {
-    const Icon = tab.icon;
-    return <Link key={tab.view} className={active === tab.view ? "active" : ""} aria-current={active === tab.view ? "page" : undefined} href={`/history?view=${tab.view}`}><Icon size={15} />{tab.label}</Link>;
-  })}</nav>;
+  return <SegmentedNav className="growth-view-tabs" active={active} label="成长档案视图" items={tabs.map((tab) => ({ value: tab.view, label: tab.label, icon: tab.icon, href: `/history?view=${tab.view}` }))} />;
 }

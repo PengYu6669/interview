@@ -1,5 +1,6 @@
 import { SiteHeader } from "./site-header";
 import type { ActivePage } from "./site-header";
+import { Badge } from "./ui/badge";
 
 export function PageShell({
   active,
@@ -40,5 +41,5 @@ export function PageIntro({
 }
 
 export function StatusBadge({ tone = "neutral", children }: { tone?: "neutral" | "success" | "warning" | "danger"; children: React.ReactNode }) {
-  return <span className={`status-badge status-${tone}`}>{children}</span>;
+  return <Badge tone={tone}>{children}</Badge>;
 }

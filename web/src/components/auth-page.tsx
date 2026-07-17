@@ -8,7 +8,7 @@ import { FormEvent, useState } from "react";
 type AuthField = "username" | "email" | "identifier" | "password" | "password_confirm";
 type FieldErrors = Partial<Record<AuthField, string>>;
 
-export function AuthPage({ mode, nextPath = "/setup" }: { mode: "login" | "register"; nextPath?: string }) {
+export function AuthPage({ mode, nextPath = "/training" }: { mode: "login" | "register"; nextPath?: string }) {
   const registering = mode === "register";
   const router = useRouter();
   const [submitting, setSubmitting] = useState(false);

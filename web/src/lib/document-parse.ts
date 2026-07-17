@@ -33,6 +33,7 @@ export interface ReviewMaterial {
   questionIds: string[];
   questionTitles: string[];
   trainingFocus: string;
+  sourceSessionId?: string;
   draftId?: string;
 }
 
@@ -99,5 +100,6 @@ export const reviewMaterialSchema: z.ZodType<ReviewMaterial> = z.object({
   questionIds: z.array(z.string().uuid()).max(20).default([]),
   questionTitles: z.array(z.string()).max(20).default([]),
   trainingFocus: z.string().max(500).default(""),
+  sourceSessionId: z.string().uuid().optional(),
   draftId: z.string().uuid().optional(),
 });

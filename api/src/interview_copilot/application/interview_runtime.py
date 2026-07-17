@@ -13,6 +13,8 @@ from interview_copilot.domain.interviews import (
     InterviewRuntimeData,
     InterviewTurnDecision,
 )
+from interview_copilot.infrastructure.career import WeeklyPlanItemRecord, WeeklyPlanRecord
+from interview_copilot.infrastructure.drafts import TrainingDraftRecord
 from interview_copilot.infrastructure.interviews import (
     InterviewSessionRecord,
     InterviewTurnRecord,
@@ -275,8 +277,7 @@ class InterviewRuntimeService:
             raise LookupError("找不到这场面试会话")
         return record
 
-    @staticmethod
-    def _advance(record: InterviewSessionRecord, plan: InterviewPlan) -> None:
+    def _advance(self, record: InterviewSessionRecord, plan: InterviewPlan) -> None:
         record.follow_up_count = 0
         phase = plan.phases[record.current_phase_index]
         if record.current_question_index + 1 < len(phase.questions):
@@ -286,9 +287,39 @@ class InterviewRuntimeService:
             record.current_question_index = 0
         else:
             record.status = "completed"
-            record.completed_at = datetime.now(UTC)
+            now = datetime.now(UTC)
+            record.completed_at = now
             record.active_question = None
+            self._complete_plan_item(record=record, now=now)
             return
         record.active_question = (
             plan.phases[record.current_phase_index].questions[record.current_question_index].prompt
         )
+
+    def _complete_plan_item(self, *, record: InterviewSessionRecord, now: datetime) -> None:
+        draft = self._session.get(TrainingDraftRecord, record.draft_id)
+        if not draft or not draft.career_plan_item_id:
+            return
+        plan_item = self._session.scalar(
+            select(WeeklyPlanItemRecord)
+            .join(WeeklyPlanRecord, WeeklyPlanRecord.id == WeeklyPlanItemRecord.plan_id)
+            .where(
+                WeeklyPlanItemRecord.id == draft.career_plan_item_id,
+                WeeklyPlanRecord.user_id == record.user_id,
+            )
+        )
+        if not plan_item:
+            return
+        plan_item.status = "completed"
+        plan_item.completed_at = now
+        plan_item.updated_at = now
+        self._session.flush()
+        plan = self._session.get(WeeklyPlanRecord, plan_item.plan_id)
+        if plan:
+            plan.status = (
+                "completed"
+                if plan.items
+                and all(item.status in {"completed", "skipped"} for item in plan.items)
+                else "active"
+            )
+            plan.updated_at = now

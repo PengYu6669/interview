@@ -1,4 +1,5 @@
 import { ArrowRight, Check, FileText, Mic2, Sparkles } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { DocumentParseStatus, INTERVIEW_TYPE_OPTIONS, LEVEL_OPTIONS, MODE_OPTIONS, ROUND_OPTIONS, SetupState } from "./model";
 
 export function SetupSummary({ state, readiness, parseStatus, onContinue, saving, saveError }: { state: SetupState; readiness: number; parseStatus: DocumentParseStatus; onContinue: () => void; saving?: boolean; saveError?: string }) {
@@ -44,11 +45,10 @@ export function SetupSummary({ state, readiness, parseStatus, onContinue, saving
           <CheckItem done={Boolean(state.role.trim())}>已确定目标岗位</CheckItem>
         </div>
         {saveError && <p className="setup-save-error" role="alert">{saveError}</p>}
-        {canContinue ? (
-          <button className="primary-button" type="button" onClick={onContinue} disabled={saving}>{saving ? "正在保存训练草稿" : "进入材料校正"} <ArrowRight size={17} /></button>
-        ) : (
-          <button className="primary-button" type="button" disabled>{parseStatus === "parsing" ? "正在解析简历" : "完成材料后继续"} <ArrowRight size={17} /></button>
-        )}
+        <Button className="mt-4 w-full" size="lg" type="button" onClick={canContinue ? onContinue : undefined} disabled={!canContinue || saving}>
+          {saving ? "正在保存训练草稿" : parseStatus === "parsing" ? "正在解析简历" : canContinue ? "进入材料校正" : "完成材料后继续"}
+          <ArrowRight size={17} />
+        </Button>
         <p className="mt-3 text-center text-[12px] leading-5 text-[var(--muted)]">
           下一步可以检查技能提取结果，并调整本次考察重点
         </p>
