@@ -245,7 +245,7 @@ class QuestionWorkflowService:
         saved_point_keys: set[str] = set()
         completed_batches = 0
 
-        # Persist knowledge-point rows before generation so partial question commits stay consistent.
+        # Save knowledge points before generation so partial question commits stay valid.
         document.section_count = len(sections)
         document.updated_at = datetime.now(UTC)
         self._session.commit()
@@ -281,7 +281,10 @@ class QuestionWorkflowService:
                 )
                 if progress:
                     progress(
-                        f"已生成 {len(details)}/{desired_total} 道题（第 {completed_batches}/{batch_count} 批失败）",
+                        (
+                            f"已生成 {len(details)}/{desired_total} 道题"
+                            f"（第 {completed_batches}/{batch_count} 批失败）"
+                        ),
                         55 + round(35 * completed_batches / batch_count),
                         document.id,
                     )
