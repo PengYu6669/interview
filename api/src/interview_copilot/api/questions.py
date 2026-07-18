@@ -339,25 +339,36 @@ async def regenerate_question_document(
     return job
 
 
+# Hard wall-clock budget for one import/regenerate run (LLM + indexing).
+_QUESTION_JOB_TIMEOUT_SECONDS = 20 * 60
+
+
 async def run_question_job_worker(stop: asyncio.Event) -> None:
     while not stop.is_set():
         with SessionFactory() as session:
+            # Sweep zombies even when the queue is empty so the UI stops spinning.
+            AiJobService(session).expire_stale(kind="question_import")
             record = AiJobService(session).claim_next(kind="question_import")
             if record:
                 payload = record.payload
                 job_id = record.id
                 user_id = record.user_id
+                estimated = max(60, int(record.estimated_seconds or 240))
+                timeout_seconds = min(
+                    _QUESTION_JOB_TIMEOUT_SECONDS,
+                    max(estimated * 3, 10 * 60),
+                )
                 AiJobService(session).release_worker_lease()
                 try:
                     if payload.get("action") == "regenerate":
-                        await _run_question_regeneration(
+                        work = _run_question_regeneration(
                             job_id,
                             user_id,
                             UUID(payload["document_id"]),
                             int(payload["additional_limit"]),
                         )
                     else:
-                        await _run_question_import(
+                        work = _run_question_import(
                             job_id,
                             user_id,
                             str(payload["filename"]),
@@ -366,6 +377,12 @@ async def run_question_job_worker(stop: asyncio.Event) -> None:
                             list(payload.get("warnings", [])),
                             int(payload["question_limit"]),
                         )
+                    await asyncio.wait_for(work, timeout=timeout_seconds)
+                except TimeoutError:
+                    _fail_job(
+                        job_id,
+                        "后台任务超时已自动停止，请缩小资料或降低题目数量后重试",
+                    )
                 except (KeyError, TypeError, ValueError) as exc:
                     _fail_job(job_id, f"后台任务参数无效：{exc}")
                 continue

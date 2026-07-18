@@ -1,10 +1,10 @@
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
-from interview_copilot.application.jobs import AiJobService
+from interview_copilot.application.jobs import HARD_TIMEOUT, AiJobService
 from interview_copilot.infrastructure.database import Base, UserRecord
 from interview_copilot.infrastructure.jobs import AiJobRecord
 
@@ -92,3 +92,64 @@ def test_worker_claims_queued_job_and_persists_payload() -> None:
         assert claimed.payload["question_limit"] == 30
         assert claimed.attempt_count == 1
         assert claimed.heartbeat_at is not None
+
+
+def test_expire_stale_fails_timed_out_processing_job() -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    with Session(engine, expire_on_commit=False) as session:
+        owner = _user(session, "stale-owner")
+        service = AiJobService(session)
+        job, _ = service.create(
+            user_id=owner.id,
+            kind="question_import",
+            stage="正在分析知识点",
+            estimated_seconds=240,
+        )
+        record = session.get(AiJobRecord, job.id)
+        assert record is not None
+        record.status = "processing"
+        record.progress = 50
+        # Older than hard timeout and without a recent heartbeat.
+        record.created_at = datetime.now(UTC) - HARD_TIMEOUT - timedelta(minutes=1)
+        record.heartbeat_at = datetime.now(UTC) - timedelta(minutes=10)
+        record.updated_at = record.heartbeat_at
+        session.commit()
+
+        expired = service.expire_stale(kind="question_import")
+        refreshed = service.get(user_id=owner.id, job_id=job.id)
+
+        assert expired == 1
+        assert refreshed.status == "failed"
+        assert "超时" in (refreshed.error or "")
+
+
+def test_create_expires_blocking_active_job() -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    with Session(engine, expire_on_commit=False) as session:
+        owner = _user(session, "block-owner")
+        service = AiJobService(session)
+        stuck, _ = service.create(
+            user_id=owner.id,
+            kind="question_import",
+            stage="卡住",
+            estimated_seconds=60,
+        )
+        record = session.get(AiJobRecord, stuck.id)
+        assert record is not None
+        record.status = "processing"
+        record.created_at = datetime.now(UTC) - timedelta(hours=2)
+        record.heartbeat_at = datetime.now(UTC) - timedelta(hours=1)
+        session.commit()
+
+        replacement, created = service.create(
+            user_id=owner.id,
+            kind="question_import",
+            stage="等待解析资料",
+            estimated_seconds=120,
+        )
+
+        assert created is True
+        assert replacement.id != stuck.id
+        assert service.get(user_id=owner.id, job_id=stuck.id).status == "failed"

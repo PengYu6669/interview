@@ -1,5 +1,6 @@
+import asyncio
 from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from typing import Annotated
 
 from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
@@ -24,6 +25,7 @@ from .api.interviews import router as interviews_router
 from .api.jobs import router as jobs_router
 from .api.profile import router as profile_router
 from .api.questions import router as questions_router
+from .api.questions import run_question_job_worker
 from .api.reports import router as reports_router
 from .application.document_processing import process_document
 from .application.resume_extraction import ExtractResumeProfile, ResumeExtractionError
@@ -53,7 +55,16 @@ MAX_DOCUMENT_BYTES = 20 * 1024 * 1024
 
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
-    yield
+    # In-process worker keeps local/dev imports moving without a separate process.
+    stop = asyncio.Event()
+    worker = asyncio.create_task(run_question_job_worker(stop), name="question-job-worker")
+    try:
+        yield
+    finally:
+        stop.set()
+        worker.cancel()
+        with suppress(asyncio.CancelledError):
+            await worker
 
 
 app = FastAPI(title=settings.app_name, version="0.1.0", lifespan=lifespan)
