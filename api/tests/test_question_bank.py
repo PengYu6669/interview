@@ -3,7 +3,7 @@ from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
 import pytest
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import Session
 
 from interview_copilot.application.question_workflows import QuestionWorkflowService
@@ -661,6 +661,134 @@ async def test_imported_document_deduplicates_versions_and_preserves_coverage() 
             )
         workflow.delete_document(user_id=owner.id, document_id=first.document.id)
         assert len(workflow.list_documents(user_id=owner.id)) == 0
+
+
+@pytest.mark.asyncio
+async def test_import_commits_questions_progressively_per_batch() -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    with Session(engine, expire_on_commit=False) as session:
+        owner = UserRecord(
+            username="progressive-owner",
+            email="progressive-owner@example.com",
+            password_hash="hash",
+            created_at=datetime.now(UTC),
+        )
+        session.add(owner)
+        session.commit()
+
+        progress_events: list[tuple[str, int]] = []
+        visible_counts: list[int] = []
+
+        class FakeProvider:
+            model_name = "fake-question-model"
+            prompt_version = "question-test-v1"
+            calls = 0
+
+            async def extract_knowledge_points(
+                self, sections: list[QuestionGenerationSection]
+            ) -> KnowledgePointMap:
+                return KnowledgePointMap(
+                    knowledge_points=[
+                        KnowledgePointCandidate(
+                            stable_key=f"point-{section.key}",
+                            title=f"知识点 {section.key}",
+                            knowledge_type="概念",
+                            interview_claim=f"{section.key} 的核心判断",
+                            section_keys=[section.key],
+                        )
+                        for section in sections
+                    ]
+                )
+
+            async def generate_questions(
+                self,
+                sections: list[QuestionGenerationSection],
+                *,
+                desired_questions: int,
+                knowledge_points: list[KnowledgePointCandidate] | None = None,
+            ) -> GeneratedQuestions:
+                del desired_questions
+                self.calls += 1
+                points = knowledge_points or []
+                return GeneratedQuestions(
+                    questions=[
+                        GeneratedQuestion(
+                            title=f"题 {point.stable_key}",
+                            knowledge_point_key=point.stable_key,
+                            prompt=f"请解释 {point.title}",
+                            difficulty="基础",
+                            question_type="原理",
+                            framework="technical",
+                            intent="考察理解",
+                            answer_outline=["定义", "例子"],
+                            common_mistakes=["只会背定义"],
+                            topics=["渐进生成"],
+                            evidence=[
+                                GeneratedQuestionEvidence(
+                                    section_key=point.section_keys[0],
+                                    quote=f"证据来自 {point.section_keys[0]}",
+                                )
+                            ],
+                            content_markdown=f"# {point.title}",
+                        )
+                        for point in points
+                    ]
+                )
+
+        class FakeIndexing:
+            async def index(self, document: object) -> None:
+                del document
+
+        # Multiple short paragraphs force multiple generation batches (4 knowledge points/batch).
+        paragraphs = [
+            f"第{index}段。这是可独立抽题的技术说明，覆盖检索、缓存、限流与发布门禁。"
+            for index in range(1, 10)
+        ]
+        text = "\n\n".join(paragraphs)
+        workflow = QuestionWorkflowService(
+            session,
+            deepseek=FakeProvider(),  # type: ignore[arg-type]
+            rag_indexing=FakeIndexing(),  # type: ignore[arg-type]
+        )
+
+        def progress(stage: str, value: int, resource_id: UUID | None) -> None:
+            del resource_id
+            progress_events.append((stage, value))
+            count = int(
+                session.scalar(
+                    select(func.count())
+                    .select_from(QuestionRecord)
+                    .where(QuestionRecord.owner_user_id == owner.id)
+                )
+                or 0
+            )
+            visible_counts.append(count)
+
+        result = await workflow.import_document(
+            user_id=owner.id,
+            filename="渐进生成.md",
+            media_type="text/markdown",
+            text=text,
+            progress=progress,
+            question_limit=12,
+        )
+
+        assert result.document.status == "ready"
+        assert len(result.questions) >= 1
+        assert any(count > 0 for count in visible_counts[:-1]), (
+            "questions should become readable before final completion"
+        )
+        assert any("已生成" in stage for stage, _ in progress_events)
+        final_count = int(
+            session.scalar(
+                select(func.count())
+                .select_from(QuestionRecord)
+                .where(QuestionRecord.owner_user_id == owner.id)
+            )
+            or 0
+        )
+        assert final_count == len(result.questions)
 
 
 def test_question_plan_uses_knowledge_points_and_respects_type_mix() -> None:

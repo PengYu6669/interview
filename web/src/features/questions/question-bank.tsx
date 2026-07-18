@@ -119,6 +119,7 @@ export function QuestionBank() {
   useEffect(() => {
     if (!importJob || !["queued", "processing"].includes(importJob.status)) return;
     let active = true;
+    let refreshTick = 0;
     const poll = window.setInterval(() => {
       void fetch(`/api/jobs/${importJob.id}`, { cache: "no-store" }).then(async (response) => {
         const payload: unknown = await response.json();
@@ -131,6 +132,16 @@ export function QuestionBank() {
           setImporting(false); setImportMessage("资料已完成解析、题目生成和索引，可以开始学习。"); setScope("mine"); await load("mine");
         } else if (job.status === "failed") {
           setImporting(false); setImportMessage(job.error ?? "资料导入失败");
+          // Keep any partially generated questions already committed by the worker.
+          setScope("mine");
+          await load("mine");
+        } else {
+          // Incremental bank refresh: questions are committed per generation batch.
+          refreshTick += 1;
+          if (refreshTick % 2 === 0 || job.progress >= 55) {
+            setScope("mine");
+            await load("mine");
+          }
         }
       }).catch((caught) => { if (active) setImportMessage(caught instanceof Error ? caught.message : "导入任务状态读取失败"); });
     }, 2_000);
@@ -261,7 +272,7 @@ export function QuestionBank() {
     {importJob && <section className={`question-job-status ${importJob.status}`} aria-live="polite">
       <div className="question-job-copy">
         {importing ? <LoaderCircle className="spin" size={18} /> : importJob.status === "completed" ? <Check size={18} /> : <FileText size={18} />}
-        <span><strong>{importJob.status === "failed" ? "资料处理失败" : importJob.status === "completed" ? "个人题库已更新" : importJob.stage}</strong><small>{importJob.status === "queued" || importJob.status === "processing" ? `已等待 ${importElapsed} 秒 · 预计还需约 ${remainingSeconds(importJob, importElapsed)} 秒，可以关闭弹窗或离开页面` : importJob.error ?? importMessage}</small></span>
+        <span><strong>{importJob.status === "failed" ? "资料处理失败" : importJob.status === "completed" ? "个人题库已更新" : importJob.stage}</strong><small>{importJob.status === "queued" || importJob.status === "processing" ? `已等待 ${importElapsed} 秒 · 预计还需约 ${remainingSeconds(importJob, importElapsed)} 秒；题目会边生成边出现在下方列表，可提前开始学习` : importJob.error ?? importMessage}</small></span>
       </div>
       <b>{importJob.progress}%</b>
       <i><span style={{ width: `${importJob.progress}%` }} /></i>

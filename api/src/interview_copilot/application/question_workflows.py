@@ -34,6 +34,7 @@ from interview_copilot.infrastructure.questions import (
 from interview_copilot.infrastructure.rag import RagDocumentRecord
 from interview_copilot.providers.deepseek_question_bank import (
     DeepSeekQuestionBankProvider,
+    GeneratedQuestion,
     GeneratedQuestions,
     KnowledgePointCandidate,
     KnowledgePointMap,
@@ -231,14 +232,23 @@ class QuestionWorkflowService:
             desired_total,
             priority_keys={point.stable_key for point in structural_points},
         )
-        generated_batches = []
         generated_warnings: list[str] = []
         if merge_warning:
             generated_warnings.append(merge_warning)
         point_batches = [
             generation_plan[offset : offset + 4] for offset in range(0, len(generation_plan), 4)
         ]
-        batch_count = len(point_batches)
+        batch_count = max(1, len(point_batches))
+        details: list[QuestionDetail] = []
+        fingerprints: set[str] = set()
+        covered_sections: set[str] = set()
+        saved_point_keys: set[str] = set()
+        completed_batches = 0
+
+        # Persist knowledge-point rows before generation so partial question commits stay consistent.
+        document.section_count = len(sections)
+        document.updated_at = datetime.now(UTC)
+        self._session.commit()
 
         async def generate_batch(
             batch_number: int,
@@ -257,111 +267,79 @@ class QuestionWorkflowService:
                     knowledge_points=batch_points,
                 )
 
-        batch_results = await asyncio.gather(
-            *(
-                generate_batch(batch_number, batch_plan)
-                for batch_number, batch_plan in enumerate(point_batches, 1)
-            ),
-            return_exceptions=True,
-        )
-        for completed, batch_result in enumerate(batch_results, 1):
-            if isinstance(batch_result, BaseException):
+        batch_tasks = [
+            asyncio.create_task(generate_batch(batch_number, batch_plan))
+            for batch_number, batch_plan in enumerate(point_batches, 1)
+        ]
+        for task in asyncio.as_completed(batch_tasks):
+            try:
+                batch_number, generated = await task
+            except Exception as exc:  # noqa: BLE001 - surface batch failure and continue
+                completed_batches += 1
                 generated_warnings.append(
-                    f"第 {completed}/{batch_count} 批题目生成失败，已跳过：{batch_result}"
+                    f"第 {completed_batches}/{batch_count} 批题目生成失败，已跳过：{exc}"
                 )
-            else:
-                _, generated = batch_result
-                generated_batches.append(generated)
+                if progress:
+                    progress(
+                        f"已生成 {len(details)}/{desired_total} 道题（第 {completed_batches}/{batch_count} 批失败）",
+                        55 + round(35 * completed_batches / batch_count),
+                        document.id,
+                    )
+                continue
+
+            completed_batches += 1
+            generated_warnings.extend(generated.warnings)
+            batch_saved = await self._persist_generated_items(
+                generated.questions,
+                user_id=user_id,
+                filename=filename,
+                document=document,
+                question_set=question_set,
+                point_records=point_records,
+                section_map=section_map,
+                details=details,
+                fingerprints=fingerprints,
+                covered_sections=covered_sections,
+                saved_point_keys=saved_point_keys,
+                sort_offset=0,
+                index_now=False,
+            )
+            if batch_saved:
+                document.covered_section_count = len(covered_sections)
+                document.covered_knowledge_point_count = len(saved_point_keys)
+                document.coverage_ratio = (
+                    len(saved_point_keys) / len(point_records) if point_records else 0
+                )
+                document.warnings = [
+                    *list(initial_warnings or []),
+                    *generated_warnings,
+                ]
+                document.updated_at = datetime.now(UTC)
+                question_set.updated_at = datetime.now(UTC)
+                # Commit after every successful batch so the bank can show questions immediately.
+                self._session.commit()
             if progress:
-                generated_count = sum(len(batch.questions) for batch in generated_batches)
                 progress(
-                    f"正在生成题目 {generated_count}/{desired_total}",
-                    55 + round(35 * completed / batch_count),
+                    f"已生成 {len(details)}/{desired_total} 道题",
+                    55 + round(35 * completed_batches / batch_count),
                     document.id,
                 )
-        generated_questions = [item for batch in generated_batches for item in batch.questions]
-        generated_warnings.extend(
-            warning for batch in generated_batches for warning in batch.warnings
-        )
-        details: list[QuestionDetail] = []
-        fingerprints: set[str] = set()
-        covered_sections: set[str] = set()
-        saved_point_keys: set[str] = set()
-        for item in generated_questions:
-            fingerprint = sha256(
-                f"{item.title.strip().casefold()}\n{item.prompt.strip().casefold()}".encode()
-            ).hexdigest()
-            if fingerprint in fingerprints:
-                generated_warnings.append(f"重复题目“{item.title}”已跳过")
-                continue
-            fingerprints.add(fingerprint)
-            topics = []
-            for name in item.topics:
-                slug = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
-                if not slug:
-                    slug = f"topic-{sha256(name.encode('utf-8')).hexdigest()[:12]}"
-                topic = self._session.scalar(select(TopicRecord).where(TopicRecord.slug == slug))
-                if not topic:
-                    topic = TopicRecord(slug=slug, name=name[:100])
-                    self._session.add(topic)
-                topics.append(topic)
-            question = QuestionRecord(
-                slug=f"user-{uuid4().hex}",
-                title=item.title,
-                prompt=item.prompt,
-                difficulty=item.difficulty,
-                question_type=item.question_type,
-                intent=item.intent,
-                answer_outline=item.answer_outline,
-                common_mistakes=item.common_mistakes,
-                published=False,
-                created_at=datetime.now(UTC),
-                owner_user_id=user_id,
-                content_markdown=item.content_markdown,
-                source_document_name=filename,
-                source_document_id=document.id,
-                document=document,
-                knowledge_point=point_records.get(item.knowledge_point_key),
-                framework=item.framework,
-                content_fingerprint=fingerprint,
-                topics=topics,
-            )
-            self._session.add(question)
-            self._session.flush()
-            question_set.items.append(
-                QuestionSetItemRecord(
-                    question_id=question.id,
-                    sort_order=len(details) + 1,
-                    created_at=datetime.now(UTC),
-                )
-            )
-            if item.knowledge_point_key in point_records:
-                saved_point_keys.add(item.knowledge_point_key)
-            for evidence in item.evidence:
-                section = section_map[evidence.section_key]
-                covered_sections.add(evidence.section_key)
-                question.evidence.append(
-                    QuestionEvidenceRecord(
-                        document_id=document.id,
-                        section_key=evidence.section_key,
-                        heading_path=section.heading_path,
-                        quote=evidence.quote,
-                    )
-                )
-            await self.index_question(question)
-            details.append(QuestionBankService(self._session)._detail(question, editable=True))
+
         if not details:
             failures = "；".join(generated_warnings[:3])
             raise RuntimeError(f"资料没有生成可保存的题目：{failures}")
-        minimum_acceptable = min(
-            desired_total,
-            max(len(structural_points), max(1, int(desired_total * 0.7))),
-        )
-        if len(details) < minimum_acceptable:
-            raise RuntimeError(
-                f"题目生成质量未达标：计划 {desired_total} 道，仅生成 {len(details)} 道；"
-                "请重试或检查资料清洗提示"
+
+        if progress:
+            progress(f"正在建立题目索引 {len(details)} 道", 90, document.id)
+        for detail in details:
+            question = self._session.scalar(
+                select(QuestionRecord)
+                .where(QuestionRecord.id == detail.id)
+                .options(selectinload(QuestionRecord.topics), selectinload(QuestionRecord.sources))
             )
+            if question:
+                await self.index_question(question)
+
         document.section_count = len(sections)
         document.covered_section_count = len(covered_sections)
         document.covered_knowledge_point_count = len(saved_point_keys)
@@ -369,21 +347,26 @@ class QuestionWorkflowService:
         document.status = "ready"
         question_set.status = "ready"
         question_set.updated_at = datetime.now(UTC)
+        if len(saved_point_keys) < len(point_records):
+            generated_warnings.append(
+                f"仍有 {len(point_records) - len(saved_point_keys)} 个知识点未形成题目，"
+                "可使用继续生成补充"
+            )
+        if len(details) < min(
+            desired_total,
+            max(len(structural_points), max(1, int(desired_total * 0.7))),
+        ):
+            generated_warnings.append(
+                f"计划生成约 {desired_total} 道，当前已保存 {len(details)} 道；"
+                "可使用继续生成补充剩余知识点"
+            )
         document.warnings = [
             *list(initial_warnings or []),
             *generated_warnings,
-            *(
-                [
-                    f"仍有 {len(point_records) - len(saved_point_keys)} 个知识点未形成题目，"
-                    "可使用继续生成补充"
-                ]
-                if len(saved_point_keys) < len(point_records)
-                else []
-            ),
         ]
         document.updated_at = datetime.now(UTC)
         if progress:
-            progress("正在保存题目与原文证据", 92, document.id)
+            progress(f"已完成，可学习 {len(details)} 道题", 96, document.id)
         self._session.commit()
         self._session.refresh(document)
         return QuestionImportResult(
@@ -486,8 +469,21 @@ class QuestionWorkflowService:
         plan = self._question_plan(candidates, min(additional_limit, len(candidates)))
         point_records = {point.stable_key: point for point in points}
         provider = self._deepseek_provider()
-        generated = []
         warnings = list(document.warnings)
+        details: list[QuestionDetail] = []
+        existing_fingerprints = set(
+            self._session.scalars(
+                select(QuestionRecord.content_fingerprint).where(
+                    QuestionRecord.source_document_id == document.id,
+                    QuestionRecord.content_fingerprint.is_not(None),
+                )
+            )
+        )
+        covered_sections: set[str] = set()
+        saved_point_keys: set[str] = set()
+        question_set.status = "generating"
+        question_set.updated_at = datetime.now(UTC)
+        self._session.commit()
         for offset in range(0, len(plan), 4):
             batch_plan = plan[offset : offset + 4]
             batch_points = [
@@ -501,76 +497,45 @@ class QuestionWorkflowService:
                     desired_questions=sum(count for _, count in batch_plan),
                     knowledge_points=batch_points,
                 )
-                generated.extend(result.questions)
                 warnings.extend(result.warnings)
             except RuntimeError as exc:
                 warnings.append(f"继续生成批次失败，已跳过：{exc}")
-        details: list[QuestionDetail] = []
-        existing_fingerprints = set(
-            self._session.scalars(
-                select(QuestionRecord.content_fingerprint).where(
-                    QuestionRecord.source_document_id == document.id,
-                    QuestionRecord.content_fingerprint.is_not(None),
-                )
-            )
-        )
-        for item in generated:
-            fingerprint = sha256(
-                f"{item.title.strip().casefold()}\n{item.prompt.strip().casefold()}".encode()
-            ).hexdigest()
-            if fingerprint in existing_fingerprints:
                 continue
-            existing_fingerprints.add(fingerprint)
-            topics = []
-            for name in item.topics:
-                slug = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
-                slug = slug or f"topic-{sha256(name.encode('utf-8')).hexdigest()[:12]}"
-                topic = self._session.scalar(select(TopicRecord).where(TopicRecord.slug == slug))
-                if not topic:
-                    topic = TopicRecord(slug=slug, name=name[:100])
-                    self._session.add(topic)
-                topics.append(topic)
-            question = QuestionRecord(
-                slug=f"user-{uuid4().hex}",
-                title=item.title,
-                prompt=item.prompt,
-                difficulty=item.difficulty,
-                question_type=item.question_type,
-                intent=item.intent,
-                answer_outline=item.answer_outline,
-                common_mistakes=item.common_mistakes,
-                published=False,
-                created_at=datetime.now(UTC),
-                owner_user_id=user_id,
-                content_markdown=item.content_markdown,
-                source_document_name=document.filename,
+            batch_saved = await self._persist_generated_items(
+                result.questions,
+                user_id=user_id,
+                filename=document.filename,
                 document=document,
-                knowledge_point=point_records[item.knowledge_point_key],
-                framework=item.framework,
-                content_fingerprint=fingerprint,
-                topics=topics,
+                question_set=question_set,
+                point_records=point_records,
+                section_map=section_map,
+                details=details,
+                fingerprints=existing_fingerprints,
+                covered_sections=covered_sections,
+                saved_point_keys=saved_point_keys,
+                sort_offset=existing_set_count,
+                index_now=True,
             )
-            self._session.add(question)
-            self._session.flush()
-            question_set.items.append(
-                QuestionSetItemRecord(
-                    question_id=question.id,
-                    sort_order=existing_set_count + len(details) + 1,
-                    created_at=datetime.now(UTC),
-                )
-            )
-            for evidence in item.evidence:
-                section = section_map[evidence.section_key]
-                question.evidence.append(
-                    QuestionEvidenceRecord(
-                        document_id=document.id,
-                        section_key=evidence.section_key,
-                        heading_path=section.heading_path,
-                        quote=evidence.quote,
+            if batch_saved:
+                covered_count = int(
+                    self._session.scalar(
+                        select(func.count(func.distinct(QuestionRecord.knowledge_point_id))).where(
+                            QuestionRecord.source_document_id == document.id,
+                            QuestionRecord.knowledge_point_id.is_not(None),
+                        )
                     )
+                    or 0
                 )
-            await self.index_question(question)
-            details.append(QuestionBankService(self._session)._detail(question, editable=True))
+                document.covered_knowledge_point_count = covered_count
+                document.coverage_ratio = (
+                    covered_count / document.knowledge_point_count
+                    if document.knowledge_point_count
+                    else 0
+                )
+                document.warnings = warnings
+                document.updated_at = datetime.now(UTC)
+                question_set.updated_at = datetime.now(UTC)
+                self._session.commit()
         if not details:
             raise RuntimeError("未能生成新的非重复题目")
         covered_count = int(
@@ -583,7 +548,9 @@ class QuestionWorkflowService:
             or 0
         )
         document.covered_knowledge_point_count = covered_count
-        document.coverage_ratio = covered_count / document.knowledge_point_count
+        document.coverage_ratio = (
+            covered_count / document.knowledge_point_count if document.knowledge_point_count else 0
+        )
         document.warnings = warnings
         document.updated_at = datetime.now(UTC)
         question_set.status = "ready"
@@ -921,6 +888,94 @@ class QuestionWorkflowService:
         for index in range(desired_total - len(selected)):
             counts[index % len(counts)] += 1
         return list(zip(selected, counts, strict=True))
+
+    async def _persist_generated_items(
+        self,
+        items: list[GeneratedQuestion],
+        *,
+        user_id: UUID,
+        filename: str,
+        document: QuestionDocumentRecord,
+        question_set: QuestionSetRecord,
+        point_records: dict[str, KnowledgePointRecord],
+        section_map: dict[str, QuestionGenerationSection],
+        details: list[QuestionDetail],
+        fingerprints: set[str],
+        covered_sections: set[str],
+        saved_point_keys: set[str],
+        sort_offset: int,
+        index_now: bool,
+    ) -> int:
+        bank = QuestionBankService(self._session)
+        saved = 0
+        for item in items:
+            fingerprint = sha256(
+                f"{item.title.strip().casefold()}\n{item.prompt.strip().casefold()}".encode()
+            ).hexdigest()
+            if fingerprint in fingerprints:
+                continue
+            fingerprints.add(fingerprint)
+            topics = []
+            for name in item.topics:
+                slug = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
+                if not slug:
+                    slug = f"topic-{sha256(name.encode('utf-8')).hexdigest()[:12]}"
+                topic = self._session.scalar(select(TopicRecord).where(TopicRecord.slug == slug))
+                if not topic:
+                    topic = TopicRecord(slug=slug, name=name[:100])
+                    self._session.add(topic)
+                topics.append(topic)
+            knowledge_point = point_records.get(item.knowledge_point_key)
+            question = QuestionRecord(
+                slug=f"user-{uuid4().hex}",
+                title=item.title,
+                prompt=item.prompt,
+                difficulty=item.difficulty,
+                question_type=item.question_type,
+                intent=item.intent,
+                answer_outline=item.answer_outline,
+                common_mistakes=item.common_mistakes,
+                published=False,
+                created_at=datetime.now(UTC),
+                owner_user_id=user_id,
+                content_markdown=item.content_markdown,
+                source_document_name=filename,
+                source_document_id=document.id,
+                document=document,
+                knowledge_point=knowledge_point,
+                framework=item.framework,
+                content_fingerprint=fingerprint,
+                topics=topics,
+            )
+            self._session.add(question)
+            self._session.flush()
+            question_set.items.append(
+                QuestionSetItemRecord(
+                    question_id=question.id,
+                    sort_order=sort_offset + len(details) + 1,
+                    created_at=datetime.now(UTC),
+                )
+            )
+            if knowledge_point is not None:
+                saved_point_keys.add(item.knowledge_point_key)
+            for evidence in item.evidence:
+                section = section_map.get(evidence.section_key)
+                if not section:
+                    continue
+                covered_sections.add(evidence.section_key)
+                question.evidence.append(
+                    QuestionEvidenceRecord(
+                        document_id=document.id,
+                        section_key=evidence.section_key,
+                        heading_path=section.heading_path,
+                        quote=evidence.quote,
+                    )
+                )
+            if index_now:
+                await self.index_question(question)
+            details.append(bank._detail(question, editable=True))
+            saved += 1
+        return saved
 
     @staticmethod
     def _document_summary(
