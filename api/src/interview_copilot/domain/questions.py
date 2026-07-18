@@ -57,6 +57,10 @@ class QuestionDocumentSummary(BaseModel):
     section_count: int = Field(ge=0)
     covered_section_count: int = Field(ge=0)
     question_count: int = Field(ge=0)
+    knowledge_point_count: int = Field(default=0, ge=0)
+    covered_knowledge_point_count: int = Field(default=0, ge=0)
+    suggested_question_count: int = Field(default=0, ge=0, le=100)
+    requested_question_limit: int = Field(default=30, ge=10, le=100)
     created_at: datetime
     updated_at: datetime
 
@@ -65,6 +69,25 @@ class QuestionImportResult(BaseModel):
     document: QuestionDocumentSummary
     questions: list[QuestionDetail]
     warnings: list[str] = Field(default_factory=list)
+
+
+class QuestionSetSummary(BaseModel):
+    id: UUID
+    name: str
+    kind: str
+    status: str
+    target_count: int = Field(ge=0, le=100)
+    question_count: int = Field(ge=0)
+    document_id: UUID | None = None
+    document_name: str | None = None
+    knowledge_point_count: int = Field(default=0, ge=0)
+    covered_knowledge_point_count: int = Field(default=0, ge=0)
+    created_at: datetime
+    updated_at: datetime
+
+
+class QuestionSetDetail(QuestionSetSummary):
+    questions: list[QuestionSummary]
 
 
 class CitationData(BaseModel):

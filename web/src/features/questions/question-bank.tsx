@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { aiJobStatusSchema, remainingSeconds, type AiJobStatus } from "@/lib/ai-jobs";
-import { QUESTION_COACHING_SELECTION_KEY, QUESTION_INTERVIEW_SELECTION_KEY, questionDocumentSchema, questionSummarySchema, type QuestionDocumentSummary, type QuestionSummary } from "@/lib/questions";
+import { QUESTION_COACHING_SELECTION_KEY, QUESTION_INTERVIEW_SELECTION_KEY, questionDocumentSchema, questionSetDetailSchema, questionSetSummarySchema, questionSummarySchema, type QuestionDocumentSummary, type QuestionSetSummary, type QuestionSummary } from "@/lib/questions";
 
 type Scope = "public" | "mine" | "review";
 
@@ -33,6 +33,8 @@ export function QuestionBank() {
   const [scope, setScope] = useState<Scope>("public");
   const [questions, setQuestions] = useState<QuestionSummary[]>([]);
   const [documents, setDocuments] = useState<QuestionDocumentSummary[]>([]);
+  const [questionSets, setQuestionSets] = useState<QuestionSetSummary[]>([]);
+  const [activeSet, setActiveSet] = useState<string>("");
   const [activeDocument, setActiveDocument] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
@@ -44,6 +46,7 @@ export function QuestionBank() {
   const [importLoginRequired, setImportLoginRequired] = useState(false);
   const [importJob, setImportJob] = useState<AiJobStatus | null>(null);
   const [importElapsed, setImportElapsed] = useState(0);
+  const [questionLimit, setQuestionLimit] = useState(30);
   const [loginRequired, setLoginRequired] = useState(false);
   const [selecting, setSelecting] = useState(false);
   const [selected, setSelected] = useState<Map<string, { title: string; framework: string }>>(new Map());
@@ -55,16 +58,18 @@ export function QuestionBank() {
     setError("");
     setLoginRequired(false);
     try {
-      const [items, documentItems] = await Promise.all([
+      const [items, documentItems, setItems] = await Promise.all([
         requestQuestions(nextScope),
         nextScope === "mine" ? fetch("/api/questions/documents", { cache: "no-store" }).then(async (response) => {
           const payload: unknown = await response.json();
           if (!response.ok) throw new QuestionRequestError(errorMessage(payload, "题库资料读取失败"), response.status);
           return questionDocumentSchema.array().parse(payload);
         }) : Promise.resolve([]),
+        nextScope === "mine" ? fetch("/api/questions/sets", { cache: "no-store" }).then(async (response) => questionSetSummarySchema.array().parse(await response.json())) : Promise.resolve([]),
       ]);
       setQuestions(items);
       setDocuments(documentItems);
+      setQuestionSets(setItems);
     } catch (caught) {
       setQuestions([]);
       setError(caught instanceof Error ? caught.message : "题库读取失败");
@@ -78,15 +83,16 @@ export function QuestionBank() {
     let active = true;
     void (async () => {
       try {
-        const [items, documentItems] = await Promise.all([
+        const [items, documentItems, setItems] = await Promise.all([
           requestQuestions(scope),
           scope === "mine" ? fetch("/api/questions/documents", { cache: "no-store" }).then(async (response) => {
             const payload: unknown = await response.json();
             if (!response.ok) throw new QuestionRequestError(errorMessage(payload, "题库资料读取失败"), response.status);
             return questionDocumentSchema.array().parse(payload);
           }) : Promise.resolve([]),
+          scope === "mine" ? fetch("/api/questions/sets", { cache: "no-store" }).then(async (response) => questionSetSummarySchema.array().parse(await response.json())) : Promise.resolve([]),
         ]);
-        if (active) { setQuestions(items); setDocuments(documentItems); setLoginRequired(false); }
+        if (active) { setQuestions(items); setDocuments(documentItems); setQuestionSets(setItems); setLoginRequired(false); }
       } catch (caught) {
         if (active) { setQuestions([]); setDocuments([]); setError(caught instanceof Error ? caught.message : "题库读取失败"); setLoginRequired(caught instanceof QuestionRequestError && caught.status === 401); }
       } finally {
@@ -136,6 +142,19 @@ export function QuestionBank() {
     setLoading(true);
     setError("");
     setScope(nextScope);
+    setActiveSet("");
+  }
+
+  async function openQuestionSet(questionSet: QuestionSetSummary) {
+    setLoading(true); setError("");
+    try {
+      const response = await fetch(`/api/questions/sets/${questionSet.id}`, { cache: "no-store" });
+      const payload: unknown = await response.json();
+      if (!response.ok) throw new Error(errorMessage(payload, "题目集读取失败"));
+      const detail = questionSetDetailSchema.parse(payload);
+      setQuestions(detail.questions); setActiveSet(questionSet.id); setActiveDocument(questionSet.document_id ?? "");
+    } catch (caught) { setError(caught instanceof Error ? caught.message : "题目集读取失败"); }
+    finally { setLoading(false); }
   }
 
   const visible = useMemo(() => questions.filter((question) => {
@@ -154,6 +173,7 @@ export function QuestionBank() {
     setImportMessage("正在上传资料…");
     const form = new FormData();
     form.set("file", file);
+    form.set("question_limit", String(questionLimit));
     try {
       const response = await fetch("/api/questions/import", { method: "POST", body: form });
       const payload: unknown = await response.json();
@@ -183,6 +203,26 @@ export function QuestionBank() {
     router.push("/setup");
   }
 
+  function selectAllVisible() {
+    setSelected(new Map(visible.slice(0, 100).map((question) => [question.id, { title: question.title, framework: question.framework }])));
+  }
+
+  async function saveSelectionAsSet() {
+    if (!selected.size) return;
+    const name = window.prompt("题目集名称", "面试冲刺题目集")?.trim();
+    if (!name) return;
+    try {
+      const response = await fetch("/api/questions/sets", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, question_ids: Array.from(selected.keys()) }),
+      });
+      const payload: unknown = await response.json();
+      if (!response.ok) throw new Error(errorMessage(payload, "题目集创建失败"));
+      setSelected(new Map()); setSelecting(false); await load("mine"); setScope("mine");
+    } catch (caught) { setError(caught instanceof Error ? caught.message : "题目集创建失败"); }
+  }
+
   function startCoachingFromSelection() {
     if (selected.size !== 1) return;
     const [id, item] = selected.entries().next().value as [string, { title: string; framework: string }];
@@ -198,8 +238,13 @@ export function QuestionBank() {
       const response = await fetch(`/api/questions/documents/${document.id}${action === "regenerate" ? "/regenerate" : ""}`, { method: action === "regenerate" ? "POST" : "DELETE" });
       const payload: unknown = response.status === 204 ? null : await response.json();
       if (!response.ok) throw new Error(errorMessage(payload, action === "delete" ? "资料删除失败" : "重新生成失败"));
+      if (action === "regenerate") {
+        const job = aiJobStatusSchema.parse(payload);
+        setImportJob(job); setImportElapsed(0); setImporting(true);
+        setImportMessage("正在从未覆盖知识点继续生成，可以离开当前页面。");
+      }
       setActiveDocument("");
-      await load("mine");
+      if (action === "delete") await load("mine");
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "资料操作失败");
     } finally {
@@ -233,25 +278,23 @@ export function QuestionBank() {
       <label className="question-difficulty"><span>难度</span><select value={difficulty} onChange={(event) => setDifficulty(event.target.value)}><option value="">全部</option><option value="基础">基础</option><option value="进阶">进阶</option><option value="高级">高级</option></select></label>
     </section>
 
-    <div className="question-list-heading"><div><strong>{scope === "public" ? "精选学习题" : scope === "mine" ? "我的资料题库" : "今天需要复习"}</strong><span>{loading ? "正在同步" : `${visible.length} 道题目`}</span></div><button className={selecting ? "active" : ""} type="button" onClick={() => { setSelecting((value) => !value); if (selecting) setSelected(new Map()); }}><ListPlus size={14} />{selecting ? "退出选择" : "选择题目发起面试"}</button></div>
+    <div className="question-list-heading"><div><strong>{scope === "public" ? "精选学习题" : scope === "mine" ? activeSet ? "题目集内容" : "我的题目集" : "今天需要复习"}</strong><span>{loading ? "正在同步" : activeSet || scope !== "mine" ? `${visible.length} 道题目` : `${questionSets.length} 个题目集`}</span></div>{(scope !== "mine" || activeSet) && <div className="question-heading-actions">{selecting && activeSet && <button type="button" onClick={selectAllVisible}>全选当前集合</button>}<button className={selecting ? "active" : ""} type="button" onClick={() => { setSelecting((value) => !value); if (selecting) setSelected(new Map()); }}><ListPlus size={14} />{selecting ? "退出选择" : "选择题目"}</button></div>}</div>
 
-    {scope === "mine" && !loading && documents.length > 0 && <section className="question-document-list" aria-label="导入资料版本">
-      <button className={!activeDocument ? "active" : ""} type="button" onClick={() => setActiveDocument("")}><FileText size={16} /><span><strong>全部资料</strong><small>{documents.length} 个版本</small></span></button>
-      {documents.map((document) => <article className={activeDocument === document.id ? "active" : ""} key={document.id}>
-        <button type="button" onClick={() => setActiveDocument(document.id)}><FileText size={16} /><span><strong>{document.filename}</strong><small>v{document.version} · {document.question_count} 题 · 覆盖 {Math.round(document.coverage_ratio * 100)}%</small></span></button>
-        <div><button type="button" title="基于这份资料生成新版本" aria-label={`重新生成 ${document.filename}`} disabled={Boolean(documentAction)} onClick={() => void runDocumentAction(document, "regenerate")}>{documentAction === `regenerate:${document.id}` ? <LoaderCircle className="spin" size={14} /> : <RefreshCw size={14} />}</button><button type="button" title="删除这个版本" aria-label={`删除 ${document.filename}`} disabled={Boolean(documentAction)} onClick={() => void runDocumentAction(document, "delete")}><Trash2 size={14} /></button></div>
-        {document.warnings.length > 0 && <p>{document.warnings[0]}</p>}
-      </article>)}
+    {scope === "mine" && !loading && questionSets.length > 0 && <section className="question-set-list" aria-label="我的题目集">
+      {questionSets.map((questionSet) => { const document = documents.find((item) => item.id === questionSet.document_id); return <article className={activeSet === questionSet.id ? "active" : ""} key={questionSet.id}>
+        <button type="button" onClick={() => void openQuestionSet(questionSet)}><FileText size={18} /><span><strong>{questionSet.name}</strong><small>{questionSet.question_count} 道题 · {questionSet.covered_knowledge_point_count}/{questionSet.knowledge_point_count} 个知识点</small><em>{questionSet.kind === "default" ? "资料生成" : "自定义"} · {questionSet.status === "ready" ? "可训练" : "生成中"}</em></span><ArrowRight size={16} /></button>
+        {document && <div><button type="button" title="继续生成未覆盖知识点" aria-label={`继续生成 ${questionSet.name}`} disabled={Boolean(documentAction) || document.covered_knowledge_point_count >= document.knowledge_point_count} onClick={() => void runDocumentAction(document, "regenerate")}>{documentAction === `regenerate:${document.id}` ? <LoaderCircle className="spin" size={14} /> : <RefreshCw size={14} />}</button><button type="button" title="删除资料及题目集" aria-label={`删除 ${questionSet.name}`} disabled={Boolean(documentAction)} onClick={() => void runDocumentAction(document, "delete")}><Trash2 size={14} /></button></div>}
+      </article>; })}
     </section>}
 
-    {loading ? <div className="question-skeleton-list" aria-label="正在读取题库">{[1, 2, 3].map((item) => <div key={item}><i /><span /><span /></div>)}</div> : error ? <div className="question-state"><FileText size={24} /><strong>{loginRequired ? "登录后查看个人题库" : "暂时无法读取题库"}</strong><p>{error}</p>{loginRequired ? <Link className="primary-cta" href="/login?next=/questions">登录后继续</Link> : <button type="button" onClick={() => void load()}>重新加载</button>}</div> : visible.length ? <section className="question-card-list">{visible.map((question, index) => <article className={`question-select-row ${selected.has(question.id) ? "selected" : ""}`} key={question.id}>{selecting && <button className="question-select-toggle" type="button" onClick={() => toggleQuestion(question)} aria-label={selected.has(question.id) ? `取消选择 ${question.title}` : `选择 ${question.title}`}><span>{selected.has(question.id) && <Check size={13} />}</span></button>}<Link href={`/questions/${question.slug}`} className="question-row-card">
+    {scope === "mine" && !activeSet ? null : loading ? <div className="question-skeleton-list" aria-label="正在读取题库">{[1, 2, 3].map((item) => <div key={item}><i /><span /><span /></div>)}</div> : error ? <div className="question-state"><FileText size={24} /><strong>{loginRequired ? "登录后查看个人题库" : "暂时无法读取题库"}</strong><p>{error}</p>{loginRequired ? <Link className="primary-cta" href="/login?next=/questions">登录后继续</Link> : <button type="button" onClick={() => void load()}>重新加载</button>}</div> : visible.length ? <section className="question-card-list">{visible.map((question, index) => <article className={`question-select-row ${selected.has(question.id) ? "selected" : ""}`} key={question.id}>{selecting && <button className="question-select-toggle" type="button" onClick={() => toggleQuestion(question)} aria-label={selected.has(question.id) ? `取消选择 ${question.title}` : `选择 ${question.title}`}><span>{selected.has(question.id) && <Check size={13} />}</span></button>}<Link href={`/questions/${question.slug}`} className="question-row-card">
       <div className="question-card-number">{String(index + 1).padStart(2, "0")}</div>
       <div className="question-card-copy"><div className="question-card-meta"><span className={`difficulty difficulty-${question.difficulty}`}>{question.difficulty}</span><span>{question.question_type}</span>{scope === "mine" && <span className="owned-mark">可编辑</span>}</div><h2>{question.title}</h2><p>{question.prompt}</p><footer>{(question.topics ?? []).slice(0, 4).map((topic) => <span key={topic.id}>#{topic.name}</span>)}</footer></div>
       <div className="question-card-action"><BookOpen size={18} /><span>开始学习</span><ArrowRight size={16} /></div>
     </Link></article>)}</section> : <div className="question-state"><BookOpen size={24} /><strong>{scope === "mine" ? "还没有自己的题目" : "没有匹配的题目"}</strong><p>{scope === "mine" ? "导入 Word、PDF、Markdown 或文本资料，AI 会生成可编辑的学习题。" : "换一个关键词或难度试试。"}</p>{scope === "mine" && <button type="button" onClick={() => setImportOpen(true)}>导入第一份资料</button>}</div>}
 
-    {selecting && <div className="question-selection-bar"><div><strong>已选 {selected.size} 道题</strong><span>{selected.size === 1 ? "可直接进行 STAR / PREP 结构化重答" : selected.size ? "多题适合加入模拟面试；专项训练请选择 1 道" : "最多选择 20 道题"}</span></div><button className="secondary-action" type="button" disabled={selected.size !== 1} onClick={startCoachingFromSelection}><MessageSquareText size={15} />专项训练</button><button type="button" disabled={!selected.size} onClick={startFromSelection}>准备模拟面试 <ArrowRight size={15} /></button></div>}
+    {selecting && <div className="question-selection-bar"><div><strong>已选 {selected.size} 道题</strong><span>{selected.size === 1 ? "可直接进行 STAR / PREP 结构化重答" : selected.size ? "可保存题目集或发起模拟面试" : "请选择题目"}</span></div><button className="secondary-action" type="button" disabled={!selected.size} onClick={() => void saveSelectionAsSet()}><ListPlus size={15} />保存题目集</button><button className="secondary-action" type="button" disabled={selected.size !== 1} onClick={startCoachingFromSelection}><MessageSquareText size={15} />专项训练</button><button type="button" disabled={!selected.size || selected.size > 20} onClick={startFromSelection}>准备模拟面试 <ArrowRight size={15} /></button></div>}
 
-    {importOpen && <div className="question-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setImportOpen(false); }}><section className="question-import-dialog" role="dialog" aria-modal="true" aria-labelledby="import-title"><button className="dialog-close" type="button" onClick={() => setImportOpen(false)} aria-label="关闭"><X size={18} /></button><div className="import-icon"><Sparkles size={22} /></div><h2 id="import-title">把资料变成学习题库</h2><p>支持 PDF、Word（.docx）、Markdown 和 TXT，单个文件不超过 20MB。扫描版 PDF 会自动进入百度 OCR，并保留校对提醒。</p><button className="import-dropzone" type="button" disabled={importing} onClick={() => inputRef.current?.click()}>{importing ? <LoaderCircle className="spin" size={24} /> : <Upload size={24} />}<strong>{importing ? "正在上传资料" : "选择一个文件"}</strong><span>{importing ? "上传后会转入后台，可随时关闭弹窗" : "内容只用于生成你的个人题目"}</span></button><input ref={inputRef} hidden type="file" accept=".pdf,.docx,.md,.txt" onChange={importFile} />{importMessage && <div className={`import-feedback ${importing ? "working" : ""}`}>{importMessage}</div>}{importLoginRequired && <Link className="primary-cta full-width" href="/login?next=/questions">登录后导入资料</Link>}</section></div>}
+    {importOpen && <div className="question-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setImportOpen(false); }}><section className="question-import-dialog" role="dialog" aria-modal="true" aria-labelledby="import-title"><button className="dialog-close" type="button" onClick={() => setImportOpen(false)} aria-label="关闭"><X size={18} /></button><div className="import-icon"><Sparkles size={22} /></div><h2 id="import-title">把资料变成学习题库</h2><p>系统会先识别知识点，再按上限生成题目。支持 PDF、Word（.docx）、Markdown 和 TXT，单个文件不超过 20MB。</p><label className="question-limit-control"><span><strong>题目上限</strong><em>{questionLimit} 题</em></span><input type="range" min="10" max="100" step="10" value={questionLimit} onChange={(event) => setQuestionLimit(Number(event.target.value))} /><small>默认 30 题；知识点较少时不会为凑数量注水。</small></label><button className="import-dropzone" type="button" disabled={importing} onClick={() => inputRef.current?.click()}>{importing ? <LoaderCircle className="spin" size={24} /> : <Upload size={24} />}<strong>{importing ? "正在上传资料" : "选择一个文件"}</strong><span>{importing ? "上传后会转入后台，可随时关闭弹窗" : "内容只用于生成你的个人题目"}</span></button><input ref={inputRef} hidden type="file" accept=".pdf,.docx,.md,.txt" onChange={importFile} />{importMessage && <div className={`import-feedback ${importing ? "working" : ""}`}>{importMessage}</div>}{importLoginRequired && <Link className="primary-cta full-width" href="/login?next=/questions">登录后导入资料</Link>}</section></div>}
   </main>;
 }

@@ -266,6 +266,41 @@ async def test_creates_idempotent_owned_interview_plan() -> None:
 
 
 @pytest.mark.asyncio
+async def test_existing_plan_is_available_without_configured_generator() -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    with Session(engine, expire_on_commit=False) as session:
+        owner = _create_user(session, "owner")
+        draft = _create_draft(session, owner.id, extraction={"schema_version": "test"})
+        created = await _planning_service(session, FakeGenerator()).create(
+            user_id=owner.id,
+            draft_id=draft.id,
+        )
+
+        restored = await InterviewPlanningService(session).create(
+            user_id=owner.id,
+            draft_id=draft.id,
+        )
+
+        assert restored.id == created.id
+
+
+@pytest.mark.asyncio
+async def test_new_plan_requires_configured_generator() -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    with Session(engine, expire_on_commit=False) as session:
+        owner = _create_user(session, "owner")
+        draft = _create_draft(session, owner.id, extraction={"schema_version": "test"})
+
+        with pytest.raises(InterviewPlanningError, match="DEEPSEEK_API_KEY"):
+            await InterviewPlanningService(session).create(
+                user_id=owner.id,
+                draft_id=draft.id,
+            )
+
+
+@pytest.mark.asyncio
 async def test_rejects_missing_extraction_and_invalid_total_duration() -> None:
     engine = create_engine("sqlite+pysqlite:///:memory:")
     Base.metadata.create_all(engine)

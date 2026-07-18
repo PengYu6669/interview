@@ -10,6 +10,26 @@ export type QuestionChatAnswer = components["schemas"]["QuestionChatAnswer"];
 export type QuestionChatHistory = components["schemas"]["QuestionChatHistory"];
 export type QuestionChatMessageData = components["schemas"]["QuestionChatMessageData"];
 
+export const questionSetSummarySchema = z.object({
+  id: z.string().uuid(),
+  name: z.string(),
+  kind: z.string(),
+  status: z.string(),
+  target_count: z.number().int().nonnegative(),
+  question_count: z.number().int().nonnegative(),
+  document_id: z.string().uuid().nullable(),
+  document_name: z.string().nullable(),
+  knowledge_point_count: z.number().int().nonnegative(),
+  covered_knowledge_point_count: z.number().int().nonnegative(),
+  created_at: z.string(),
+  updated_at: z.string(),
+});
+export const questionSetDetailSchema = questionSetSummarySchema.extend({
+  questions: z.array(z.lazy(() => questionSummaryObjectSchema)),
+});
+export type QuestionSetSummary = z.infer<typeof questionSetSummarySchema>;
+export type QuestionSetDetail = z.infer<typeof questionSetDetailSchema>;
+
 const topicSchema = z.object({ id: z.string().uuid(), slug: z.string(), name: z.string() });
 const citationSchema = z.object({ index: z.number().int().positive(), title: z.string(), url: z.string().nullable(), quote: z.string() });
 
@@ -49,6 +69,10 @@ export const questionDocumentSchema: z.ZodType<QuestionDocumentSummary> = z.obje
   section_count: z.number().int().nonnegative(),
   covered_section_count: z.number().int().nonnegative(),
   question_count: z.number().int().nonnegative(),
+  knowledge_point_count: z.number().int().nonnegative(),
+  covered_knowledge_point_count: z.number().int().nonnegative(),
+  suggested_question_count: z.number().int().min(0).max(100),
+  requested_question_limit: z.number().int().min(10).max(100),
   created_at: z.string(),
   updated_at: z.string(),
 });

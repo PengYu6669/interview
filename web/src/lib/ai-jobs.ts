@@ -17,5 +17,9 @@ export const aiJobStatusSchema = z.object({
 export type AiJobStatus = z.infer<typeof aiJobStatusSchema>;
 
 export function remainingSeconds(job: AiJobStatus, elapsedSeconds: number) {
+  if (job.progress > 5) {
+    const projectedTotal = elapsedSeconds / (job.progress / 100);
+    return Math.max(0, Math.round(projectedTotal - elapsedSeconds));
+  }
   return Math.max(0, Math.round(job.estimated_seconds - elapsedSeconds));
 }

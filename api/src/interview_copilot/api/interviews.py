@@ -81,8 +81,8 @@ def planning_service(
             base_url=settings.deepseek_base_url,
             model=settings.deepseek_model,
         )
-    except ValueError as exc:
-        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except ValueError:
+        generator = None
     embedding = DoubaoEmbeddingProvider(
         api_key=settings.doubao_embedding_api_key,
         endpoint=settings.doubao_embedding_endpoint,

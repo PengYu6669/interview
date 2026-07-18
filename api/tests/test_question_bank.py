@@ -22,6 +22,8 @@ from interview_copilot.providers.deepseek_question_bank import (
     GeneratedQuestion,
     GeneratedQuestionEvidence,
     GeneratedQuestions,
+    KnowledgePointCandidate,
+    KnowledgePointMap,
     QuestionGenerationSection,
 )
 
@@ -395,9 +397,7 @@ def test_generated_questions_keep_only_exact_source_evidence() -> None:
             GeneratedQuestion(
                 title="编造证据",
                 evidence=[
-                    GeneratedQuestionEvidence(
-                        section_key="section-0", quote="成本降低了 50%"
-                    )
+                    GeneratedQuestionEvidence(section_key="section-0", quote="成本降低了 50%")
                 ],
                 **base,
             ),
@@ -408,6 +408,17 @@ def test_generated_questions_keep_only_exact_source_evidence() -> None:
 
     assert [item.title for item in result.questions] == ["有效证据"]
     assert "编造证据" in result.warnings[0]
+
+
+def test_evidence_matching_tolerates_pdf_layout_but_returns_source_text() -> None:
+    source = "模型调用失败时，先做指数退避；\n超过阈值后进入降级流程。"
+
+    matched = DeepSeekQuestionBankProvider._match_quote(
+        source, "模型调用失败时,先做指数退避; 超过阈值后进入降级流程。"
+    )
+
+    assert matched == source
+    assert DeepSeekQuestionBankProvider._match_quote(source, "应永久关闭模型调用") is None
 
 
 @pytest.mark.asyncio
@@ -482,7 +493,8 @@ async def test_generation_repairs_non_exact_evidence_once(
     result = await provider.generate_questions([section], desired_questions=1)
 
     assert result.questions[0].evidence[0].quote == "使用令牌桶限制突发流量"
-    assert "使用令牌桶限制突发流量" in result.questions[0].content_markdown
+    assert "使用令牌桶限制突发流量" not in result.questions[0].content_markdown
+    assert "### 一句话回答" in result.questions[0].content_markdown
     assert "旧的错误引用" not in result.questions[0].content_markdown
 
 
@@ -501,8 +513,8 @@ def test_generated_questions_accept_fenced_json_and_keep_valid_items() -> None:
     }
     payload = (
         "```json\n"
-        f"{{\"questions\":[{json.dumps(valid, ensure_ascii=False)},"
-        "{\"title\":\"坏题\"}]}\n```"
+        f'{{"questions":[{json.dumps(valid, ensure_ascii=False)},'
+        '{"title":"坏题"}]}\n```'
     )
 
     generated, errors = DeepSeekQuestionBankProvider._parse_generated(payload)
@@ -524,17 +536,13 @@ def test_generated_question_builds_learning_content_when_model_omits_it() -> Non
         answer_outline=["说明目标", "比较方案"],
         common_mistakes=["忽略突发流量"],
         topics=["限流"],
-        evidence=[
-            GeneratedQuestionEvidence(
-                section_key="section-0", quote="使用令牌桶限制流量"
-            )
-        ],
+        evidence=[GeneratedQuestionEvidence(section_key="section-0", quote="使用令牌桶限制流量")],
     )
 
     normalized = DeepSeekQuestionBankProvider._with_content(question)
 
-    assert "### 回答框架" in normalized.content_markdown
-    assert "使用令牌桶限制流量" in normalized.content_markdown
+    assert "### 一句话回答" in normalized.content_markdown
+    assert "使用令牌桶限制流量" not in normalized.content_markdown
 
 
 @pytest.mark.asyncio
@@ -561,17 +569,35 @@ async def test_imported_document_deduplicates_versions_and_preserves_coverage() 
             model_name = "fake-question-model"
             prompt_version = "question-test-v1"
 
+            async def extract_knowledge_points(
+                self, sections: list[QuestionGenerationSection]
+            ) -> KnowledgePointMap:
+                return KnowledgePointMap(
+                    knowledge_points=[
+                        KnowledgePointCandidate(
+                            stable_key=f"project-retrieval-{index}",
+                            title="检索评测",
+                            knowledge_type="项目",
+                            interview_claim="我用召回率和发布门禁验证检索效果。",
+                            section_keys=[section.key],
+                        )
+                        for index, section in enumerate(sections)
+                    ]
+                )
+
             async def generate_questions(
                 self,
                 sections: list[QuestionGenerationSection],
                 *,
                 desired_questions: int,
+                knowledge_points: list[KnowledgePointCandidate] | None = None,
             ) -> GeneratedQuestions:
                 del desired_questions
                 return GeneratedQuestions(
                     questions=[
                         GeneratedQuestion(
                             title=f"片段 {section.key}",
+                            knowledge_point_key=(knowledge_points or [])[0].stable_key,
                             prompt="这段经历如何体现个人贡献？",
                             difficulty="进阶",
                             question_type="项目",
@@ -616,22 +642,138 @@ async def test_imported_document_deduplicates_versions_and_preserves_coverage() 
             media_type="text/markdown",
             text=text,
         )
-        regenerated = await workflow.regenerate_document(
-            user_id=owner.id,
-            document_id=first.document.id,
-        )
-
         assert first.document.coverage_ratio == 1
+        assert first.document.knowledge_point_count == 1
         assert first.questions[0].framework == "star"
         assert first.questions[0].evidence[0].quote in text
         assert duplicate.document.id == first.document.id
         assert "相同内容已经导入" in duplicate.warnings[0]
-        assert regenerated.document.version == 2
-        assert len(workflow.list_documents(user_id=owner.id)) == 2
+        with pytest.raises(ValueError, match="知识点已经全部生成"):
+            await workflow.regenerate_document(
+                user_id=owner.id,
+                document_id=first.document.id,
+            )
+        assert len(workflow.list_documents(user_id=owner.id)) == 1
         with pytest.raises(LookupError, match="找不到这份题库资料"):
             await workflow.regenerate_document(
                 user_id=stranger.id,
                 document_id=first.document.id,
             )
         workflow.delete_document(user_id=owner.id, document_id=first.document.id)
-        assert len(workflow.list_documents(user_id=owner.id)) == 1
+        assert len(workflow.list_documents(user_id=owner.id)) == 0
+
+
+def test_question_plan_uses_knowledge_points_and_respects_type_mix() -> None:
+    types = ["概念"] * 20 + ["机制"] * 8 + ["对比"] * 5 + ["场景"] * 5
+    points = [
+        KnowledgePointCandidate(
+            stable_key=f"knowledge-point-{index}",
+            title=f"知识点 {index}",
+            knowledge_type=knowledge_type,  # type: ignore[arg-type]
+            interview_claim=f"这是可以直接表达的结论 {index}",
+            section_keys=[f"section-{index}"],
+        )
+        for index, knowledge_type in enumerate(types)
+    ]
+
+    plan = QuestionWorkflowService._question_plan(points, min(30, int(len(points) * 1.2)))
+
+    assert sum(count for _, count in plan) == 30
+    selected_types = {point.knowledge_type for point, _ in plan}
+    assert selected_types == {"概念", "机制", "对比", "场景"}
+
+
+def test_question_plan_keeps_explicit_document_anchors_first() -> None:
+    points = [
+        KnowledgePointCandidate(
+            stable_key=f"document-anchor-{index}",
+            title=f"明确问题 {index}",
+            knowledge_type="场景",
+            interview_claim=f"回答明确问题 {index}",
+            section_keys=[f"section-{index}"],
+        )
+        for index in range(6)
+    ] + [
+        KnowledgePointCandidate(
+            stable_key=f"concept-point-{index}",
+            title=f"概念 {index}",
+            knowledge_type="概念",
+            interview_claim=f"解释概念 {index}",
+            section_keys=[f"section-{index + 6}"],
+        )
+        for index in range(10)
+    ]
+
+    plan = QuestionWorkflowService._question_plan(
+        points,
+        8,
+        priority_keys={point.stable_key for point in points[:6]},
+    )
+
+    assert [point.stable_key for point, _ in plan[:6]] == [point.stable_key for point in points[:6]]
+    assert sum(count for _, count in plan) == 8
+
+
+@pytest.mark.asyncio
+async def test_knowledge_point_merge_batches_large_candidate_sets(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    provider = DeepSeekQuestionBankProvider(
+        api_key="test-key",
+        base_url="https://example.invalid",
+        model="test-model",
+    )
+    calls = 0
+
+    async def fake_chat(prompt: str) -> str:
+        nonlocal calls
+        calls += 1
+        del prompt
+        return json.dumps(
+            {
+                "knowledge_points": [
+                    {
+                        "stable_key": f"merged-point-{calls}",
+                        "title": f"合并知识点 {calls}",
+                        "knowledge_type": "概念",
+                        "interview_claim": "这是可以直接表达的核心判断。",
+                        "section_keys": ["section-0"],
+                    }
+                ]
+            },
+            ensure_ascii=False,
+        )
+
+    monkeypatch.setattr(provider, "_chat", fake_chat)
+    candidates = [
+        KnowledgePointCandidate(
+            stable_key=f"candidate-point-{index}",
+            title=f"候选知识点 {index}",
+            knowledge_type="概念",
+            interview_claim="这是候选知识点的核心判断。",
+            section_keys=["section-0"],
+        )
+        for index in range(25)
+    ]
+
+    result = await provider.merge_knowledge_points(candidates)
+
+    assert calls == 2
+    assert len(result.knowledge_points) == 2
+
+
+def test_knowledge_point_dedupe_keeps_first_verified_candidate() -> None:
+    first = KnowledgePointCandidate(
+        stable_key="first-point",
+        title="同一个知识点",
+        knowledge_type="概念",
+        interview_claim="先出现的候选应被保留。",
+        section_keys=["section-0"],
+    )
+    duplicate = first.model_copy(
+        update={"stable_key": "duplicate-point", "interview_claim": "重复候选。"}
+    )
+
+    result = DeepSeekQuestionBankProvider._dedupe_points([first, duplicate])
+
+    assert [item.stable_key for item in result] == ["first-point"]

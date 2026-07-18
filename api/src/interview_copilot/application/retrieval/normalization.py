@@ -3,6 +3,8 @@ import unicodedata
 from collections import Counter
 from dataclasses import dataclass
 
+from .structure import recover_document_structure
+
 _CONTROL_CHARACTERS = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
 _EXCESSIVE_BLANK_LINES = re.compile(r"\n{4,}")
 _SUSPICIOUS_GARBAGE = re.compile(r"(?:�|□|■|\?{4,})")
@@ -29,9 +31,15 @@ def normalize_document_text(text: str, *, pages: list[str] | None = None) -> Nor
     else:
         normalized = _normalize_page(text)
 
+    structure = recover_document_structure(normalized)
+    normalized = structure.text
     warnings: list[str] = []
     if removed:
         warnings.append(f"已移除 {len(removed)} 条重复页眉或页脚，请确认正文未受影响")
+    if structure.removed_navigation_lines:
+        warnings.append(f"已忽略 {structure.removed_navigation_lines} 条目录点线或孤立页码")
+    if structure.high_confidence_headings:
+        warnings.append(f"已恢复 {len(structure.high_confidence_headings)} 个明确的问题或章节锚点")
     if _SUSPICIOUS_GARBAGE.search(normalized):
         warnings.append("文档中存在疑似乱码或 OCR 异常字符，请在继续前校对")
     if normalized and _useful_character_ratio(normalized) < 0.65:

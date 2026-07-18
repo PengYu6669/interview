@@ -1,4 +1,5 @@
 from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from typing import Annotated
 
 from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
@@ -48,7 +49,14 @@ from .tts.xfyun import XfyunTTS, XfyunTTSConfig, XfyunTTSError
 
 settings = get_settings()
 MAX_DOCUMENT_BYTES = 20 * 1024 * 1024
-app = FastAPI(title=settings.app_name, version="0.1.0")
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+    yield
+
+
+app = FastAPI(title=settings.app_name, version="0.1.0", lifespan=lifespan)
 app.include_router(auth_router)
 app.include_router(boards_router)
 app.include_router(coaching_router)

@@ -41,6 +41,24 @@ function ReviewPageLoading() {
   );
 }
 
+async function requestResumeExtraction(material: ReviewMaterial, resumeText: string) {
+  const response = await fetch("/api/resumes/extract", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      resume_text: resumeText,
+      jd: material.jd,
+      target_role: material.role,
+    }),
+  });
+  const payload: unknown = await response.json();
+  if (!response.ok) {
+    const detail = typeof payload === "object" && payload !== null && "detail" in payload ? String(payload.detail) : "结构化提取失败";
+    throw new Error(detail);
+  }
+  return resumeExtractionResultSchema.parse(payload);
+}
+
 function ReviewContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -108,6 +126,13 @@ function ReviewContent() {
             setMaterial(restored);
             setResumeText(restored.document.text);
             setLoadError("");
+            if (draft.extraction) {
+              setExtracting(true);
+              void requestResumeExtraction(restored, restored.document.text)
+                .then(setExtraction)
+                .catch((error: unknown) => setExtractionError(error instanceof Error ? error.message : "结构化结果读取失败"))
+                .finally(() => setExtracting(false));
+            }
           } catch (error) {
             setLoadError(error instanceof Error ? error.message : "训练草稿读取失败");
           }
@@ -173,26 +198,15 @@ function ReviewContent() {
     }
   }
 
-  async function extractProfile() {
-    if (!material || !resumeText.trim()) return;
+  async function extractProfile(
+    sourceMaterial: ReviewMaterial | null = material,
+    sourceResumeText = resumeText,
+  ) {
+    if (!sourceMaterial || !sourceResumeText.trim()) return;
     setExtracting(true);
     setExtractionError("");
     try {
-      const response = await fetch("/api/resumes/extract", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          resume_text: resumeText,
-          jd: material.jd,
-          target_role: material.role,
-        }),
-      });
-      const payload: unknown = await response.json();
-      if (!response.ok) {
-        const detail = typeof payload === "object" && payload !== null && "detail" in payload ? String(payload.detail) : "结构化提取失败";
-        throw new Error(detail);
-      }
-      const parsed = resumeExtractionResultSchema.parse(payload);
+      const parsed = await requestResumeExtraction(sourceMaterial, sourceResumeText);
       setExtraction(parsed);
       await cacheExtraction(parsed);
     } catch (error) {
@@ -238,7 +252,7 @@ function ReviewContent() {
                   <textarea id="resume-text" className="answer-box" value={resumeText} onChange={(event) => { setResumeText(event.target.value); setExtraction(null); }} rows={18} />
                   {!resumeText.trim() && <p className="text-xs text-[var(--danger)]" role="alert">没有可用文本。扫描版 PDF 需要 OCR，当前不能继续。</p>}
                   {extractionError && <p className="text-xs text-[var(--danger)]" role="alert">{extractionError}</p>}
-                  <Button type="button" disabled={!resumeText.trim() || extracting} onClick={extractProfile}><Sparkles size={15} />{extracting ? "AI 正在提取" : extraction ? "重新提取" : "开始结构化提取"}</Button>
+                  <Button type="button" disabled={!resumeText.trim() || extracting} onClick={() => void extractProfile()}><Sparkles size={15} />{extracting ? "正在读取结构化结果" : extraction ? "重新提取" : "开始结构化提取"}</Button>
                 </div>
               </section>
               {extraction && <StructuredProfile result={extraction} onChange={setExtraction} />}

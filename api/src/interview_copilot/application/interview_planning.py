@@ -76,8 +76,6 @@ class InterviewPlanningService:
         self._rag_search = rag_search
 
     async def create(self, *, user_id: UUID, draft_id: UUID) -> InterviewSessionData:
-        if not self._generator:
-            raise InterviewPlanningError("面试计划生成器尚未配置")
         draft = get_owned_draft(self._session, draft_id, user_id)
         if not draft:
             raise LookupError("找不到可用于生成面试的训练草稿")
@@ -92,6 +90,11 @@ class InterviewPlanningService:
         )
         if existing:
             return self._to_domain(existing)
+
+        if not self._generator:
+            raise InterviewPlanningError(
+                "尚未配置 DEEPSEEK_API_KEY，无法生成新的面试计划"
+            )
 
         selected_question_ids = self._session.scalars(
             select(TrainingDraftQuestionRecord.question_id).where(

@@ -1,12 +1,16 @@
+import json
 from uuid import UUID, uuid4
 
+import httpx
 import pytest
 
 from interview_copilot.application.resume_extraction import (
     ExtractResumeProfile,
+    ResumeExtractionError,
     normalize_document_text,
 )
 from interview_copilot.domain.resume import EvidenceItem, ResumeExtractionResult, ResumeProfile
+from interview_copilot.providers.deepseek import DeepSeekResumeExtractor
 
 
 class StubResumeExtractor:
@@ -98,3 +102,101 @@ async def test_reuses_extraction_only_for_same_user_and_context() -> None:
 
     assert cached == first
     assert extractor.calls == 2
+
+
+@pytest.mark.asyncio
+async def test_extracts_again_when_resume_changes() -> None:
+    extractor = StubResumeExtractor()
+    use_case = ExtractResumeProfile(
+        extractor, model_name="test-model", cache=MemoryCache()
+    )
+    owner = uuid4()
+
+    await use_case.execute(
+        resume_text="使用 FastAPI 开发服务",
+        jd="需要 Python 经验",
+        target_role="后端工程师",
+        user_id=owner,
+    )
+    await use_case.execute(
+        resume_text="使用 FastAPI 开发服务，并负责 PostgreSQL 优化",
+        jd="需要 Python 经验",
+        target_role="后端工程师",
+        user_id=owner,
+    )
+
+    assert extractor.calls == 2
+
+
+def _deepseek_response(content: str) -> httpx.Response:
+    return httpx.Response(
+        200,
+        json={"choices": [{"message": {"content": content}}]},
+    )
+
+
+@pytest.mark.asyncio
+async def test_deepseek_repairs_invalid_structured_output_once() -> None:
+    requests: list[dict[str, object]] = []
+    valid = ResumeProfile(
+        target_role="后端工程师",
+        summary="候选人使用 FastAPI 开发服务",
+    ).model_dump_json()
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        payload = json.loads(request.content)
+        requests.append(payload)
+        if len(requests) == 1:
+            return _deepseek_response('{"target_role": 42}')
+        return _deepseek_response(valid)
+
+    client = httpx.AsyncClient(
+        base_url="https://example.invalid",
+        transport=httpx.MockTransport(handler),
+    )
+    provider = DeepSeekResumeExtractor(
+        api_key="test-key",
+        base_url="https://example.invalid",
+        model="test-model",
+        client=client,
+    )
+    try:
+        result = await provider.extract(
+            resume_text="使用 FastAPI 开发服务",
+            jd="需要 Python 经验",
+            target_role="后端工程师",
+        )
+    finally:
+        await client.aclose()
+
+    assert result.target_role == "后端工程师"
+    assert len(requests) == 2
+    repair_messages = requests[1]["messages"]
+    assert isinstance(repair_messages, list)
+    assert "校验错误路径：target_role" in repair_messages[-1]["content"]
+
+
+@pytest.mark.asyncio
+async def test_deepseek_reports_failure_after_repair_is_still_invalid() -> None:
+    async def handler(_: httpx.Request) -> httpx.Response:
+        return _deepseek_response('{"target_role": 42}')
+
+    client = httpx.AsyncClient(
+        base_url="https://example.invalid",
+        transport=httpx.MockTransport(handler),
+    )
+    provider = DeepSeekResumeExtractor(
+        api_key="test-key",
+        base_url="https://example.invalid",
+        model="test-model",
+        client=client,
+    )
+    try:
+        with pytest.raises(ResumeExtractionError, match="自动修复后仍未通过校验"):
+            await provider.extract(
+                resume_text="使用 FastAPI 开发服务",
+                jd="需要 Python 经验",
+                target_role="后端工程师",
+            )
+    finally:
+        await client.aclose()

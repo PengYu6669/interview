@@ -47,6 +47,9 @@ class QuestionDocumentRecord(Base):
     coverage_ratio: Mapped[float] = mapped_column(Float, default=0)
     section_count: Mapped[int] = mapped_column(Integer, default=0)
     covered_section_count: Mapped[int] = mapped_column(Integer, default=0)
+    knowledge_point_count: Mapped[int] = mapped_column(Integer, default=0)
+    covered_knowledge_point_count: Mapped[int] = mapped_column(Integer, default=0)
+    requested_question_limit: Mapped[int] = mapped_column(Integer, default=30)
     model: Mapped[str] = mapped_column(String(100))
     prompt_version: Mapped[str] = mapped_column(String(80))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
@@ -54,6 +57,69 @@ class QuestionDocumentRecord(Base):
     questions: Mapped[list["QuestionRecord"]] = relationship(
         back_populates="document", cascade="all, delete-orphan"
     )
+    knowledge_points: Mapped[list["KnowledgePointRecord"]] = relationship(
+        back_populates="document", cascade="all, delete-orphan"
+    )
+    question_sets: Mapped[list["QuestionSetRecord"]] = relationship(
+        back_populates="document", cascade="all, delete-orphan"
+    )
+
+
+class QuestionSetRecord(Base):
+    __tablename__ = "question_sets"
+
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    owner_user_id: Mapped[UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    document_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("question_documents.id", ondelete="CASCADE"), nullable=True, index=True
+    )
+    name: Mapped[str] = mapped_column(String(250))
+    kind: Mapped[str] = mapped_column(String(20), default="custom", index=True)
+    status: Mapped[str] = mapped_column(String(20), default="ready", index=True)
+    target_count: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    document: Mapped[QuestionDocumentRecord | None] = relationship(back_populates="question_sets")
+    items: Mapped[list["QuestionSetItemRecord"]] = relationship(
+        back_populates="question_set", cascade="all, delete-orphan"
+    )
+
+
+class QuestionSetItemRecord(Base):
+    __tablename__ = "question_set_items"
+    __table_args__ = (UniqueConstraint("question_set_id", "question_id"),)
+
+    question_set_id: Mapped[UUID] = mapped_column(
+        ForeignKey("question_sets.id", ondelete="CASCADE"), primary_key=True
+    )
+    question_id: Mapped[UUID] = mapped_column(
+        ForeignKey("questions.id", ondelete="CASCADE"), primary_key=True
+    )
+    sort_order: Mapped[int] = mapped_column(Integer)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    question_set: Mapped[QuestionSetRecord] = relationship(back_populates="items")
+    question: Mapped["QuestionRecord"] = relationship()
+
+
+class KnowledgePointRecord(Base):
+    __tablename__ = "knowledge_points"
+    __table_args__ = (UniqueConstraint("document_id", "stable_key"),)
+
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    document_id: Mapped[UUID] = mapped_column(
+        ForeignKey("question_documents.id", ondelete="CASCADE"), index=True
+    )
+    stable_key: Mapped[str] = mapped_column(String(64))
+    title: Mapped[str] = mapped_column(String(250))
+    knowledge_type: Mapped[str] = mapped_column(String(30), index=True)
+    interview_claim: Mapped[str] = mapped_column(Text)
+    section_keys: Mapped[list[str]] = mapped_column(json_type, default=list)
+    heading_paths: Mapped[list[list[str]]] = mapped_column(json_type, default=list)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    document: Mapped[QuestionDocumentRecord] = relationship(back_populates="knowledge_points")
+    questions: Mapped[list["QuestionRecord"]] = relationship(back_populates="knowledge_point")
 
 
 class QuestionRecord(Base):
@@ -77,14 +143,16 @@ class QuestionRecord(Base):
     source_document_id: Mapped[UUID | None] = mapped_column(
         ForeignKey("question_documents.id", ondelete="CASCADE"), nullable=True, index=True
     )
+    knowledge_point_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("knowledge_points.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     framework: Mapped[str] = mapped_column(String(30), default="technical", index=True)
     content_fingerprint: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     document: Mapped[QuestionDocumentRecord | None] = relationship(back_populates="questions")
+    knowledge_point: Mapped[KnowledgePointRecord | None] = relationship(back_populates="questions")
     topics: Mapped[list[TopicRecord]] = relationship(secondary="question_topic_links")
     sources: Mapped[list["QuestionSourceRecord"]] = relationship(cascade="all, delete-orphan")
-    evidence: Mapped[list["QuestionEvidenceRecord"]] = relationship(
-        cascade="all, delete-orphan"
-    )
+    evidence: Mapped[list["QuestionEvidenceRecord"]] = relationship(cascade="all, delete-orphan")
 
 
 class QuestionTopicLink(Base):

@@ -69,3 +69,26 @@ def test_ai_job_rejects_cross_user_access() -> None:
 
         with pytest.raises(LookupError, match="找不到"):
             AiJobService(session).get(user_id=stranger.id, job_id=job.id)
+
+
+def test_worker_claims_queued_job_and_persists_payload() -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    with Session(engine, expire_on_commit=False) as session:
+        owner = _user(session, "worker-owner")
+        service = AiJobService(session)
+        created, _ = service.create(
+            user_id=owner.id,
+            kind="question_import",
+            stage="等待处理",
+            estimated_seconds=240,
+            payload={"action": "import", "question_limit": 30},
+        )
+
+        claimed = service.claim_next(kind="question_import")
+
+        assert claimed is not None
+        assert claimed.id == created.id
+        assert claimed.payload["question_limit"] == 30
+        assert claimed.attempt_count == 1
+        assert claimed.heartbeat_at is not None

@@ -3272,6 +3272,14 @@ export interface components {
             covered_section_count: number;
             /** Question Count */
             question_count: number;
+            /** Knowledge Point Count */
+            knowledge_point_count: number;
+            /** Covered Knowledge Point Count */
+            covered_knowledge_point_count: number;
+            /** Suggested Question Count */
+            suggested_question_count: number;
+            /** Requested Question Limit */
+            requested_question_limit: number;
             /**
              * Created At
              * Format: date-time

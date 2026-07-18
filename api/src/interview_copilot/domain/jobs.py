@@ -17,3 +17,4 @@ class AiJobStatus(BaseModel):
     created_at: datetime
     updated_at: datetime
     completed_at: datetime | None = None
+    attempt_count: int = 0
