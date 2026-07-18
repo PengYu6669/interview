@@ -689,3 +689,36 @@ select:focus-visible {
 .question-limit-control small { color: var(--text-muted, #667085); font-size: 12px; line-height: 1.5; }
 .question-set-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:0 0 20px}.question-set-list>article{position:relative;min-width:0;border:1px solid var(--line);border-radius:7px;background:#fff}.question-set-list>article.active{border-color:var(--accent);background:#f3f9f7}.question-set-list article>button{display:grid;width:100%;grid-template-columns:24px minmax(0,1fr) 18px;align-items:center;gap:10px;min-height:102px;border:0;background:transparent;padding:16px;text-align:left}.question-set-list article>button>svg:first-child{color:var(--accent)}.question-set-list article span{min-width:0}.question-set-list strong,.question-set-list small,.question-set-list em{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.question-set-list strong{font-size:14px}.question-set-list small{margin-top:8px;color:var(--muted);font-size:12px}.question-set-list em{margin-top:6px;color:#6b7a78;font-size:12px;font-style:normal}.question-set-list article>div{position:absolute;top:10px;right:10px;display:flex;gap:3px}.question-set-list article>div button{display:grid;width:27px;height:27px;place-items:center;border:0;border-radius:4px;background:#f1f4f3}.question-set-list article>div button:hover{background:#e2eeeb}@media(max-width:700px){.question-set-list{grid-template-columns:1fr}}
 .question-heading-actions{display:flex;align-items:center;gap:10px}.question-heading-actions button{display:flex;align-items:center;gap:5px;border:0;background:transparent;color:var(--accent);font-size:12px;font-weight:650}.question-heading-actions button.active{color:#9a5a12}
+
+/* Hallmark · training hub coach motion · locked paper/pine/room */
+@keyframes coach-breathe {
+  0%, 100% { opacity: 0.34; transform: scale(1); }
+  50% { opacity: 0.62; transform: scale(1.06); }
+}
+@keyframes coach-trail-pulse {
+  0%, 100% { opacity: 0.35; box-shadow: 0 0 0 0 hsl(var(--pine-bright) / 0%); }
+  50% { opacity: 1; box-shadow: 0 0 0 0.35rem hsl(var(--pine-bright) / 12%); }
+}
+@keyframes coach-trail-flow {
+  0% { transform: scaleX(0.2); opacity: 0.35; }
+  50% { transform: scaleX(1); opacity: 0.9; }
+  100% { transform: scaleX(0.2); opacity: 0.35; }
+}
+.coach-breathe {
+  animation: coach-breathe 4.2s ease-in-out infinite;
+  transform-origin: center;
+}
+.coach-trail-dot.is-active {
+  animation: coach-trail-pulse 1.8s ease-in-out infinite;
+}
+.coach-trail-line.is-active {
+  transform-origin: left center;
+  animation: coach-trail-flow 2.4s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .coach-breathe,
+  .coach-trail-dot.is-active,
+  .coach-trail-line.is-active {
+    animation: none !important;
+  }
+}
