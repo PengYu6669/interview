@@ -1,6 +1,6 @@
 "use client";
 
-import { Bot, Check, ChevronRight, CircleHelp, Clock3, LoaderCircle, Pencil, Plus, RefreshCw, Save, Target, Trash2 } from "lucide-react";
+import { Check, ChevronRight, Clock3, LoaderCircle, Pencil, Plus, RefreshCw, Save, Target, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
@@ -66,12 +66,6 @@ async function readCareerDraft(draftId: string) {
   if (response.status === 404 || response.status === 409) return null;
   if (!response.ok) throw new Error(detail(payload, "规划草稿读取失败"));
   return weeklyPlanDraftSchema.parse(payload);
-}
-
-function weeklyMixSummary(hours: number) {
-  const questionSessions = hours <= 2 ? 1 : hours < 7 ? 2 : 3;
-  const mockInterviews = hours < 3 ? 0 : hours < 7 ? 1 : 2;
-  return `题目精练 ${questionSessions} 次（每次 2-3 道） · ${mockInterviews ? `模拟面试 ${mockInterviews} 场` : "限时追问 1 次"} · 结构化输出 1 次`;
 }
 
 type ProfileForm = {
@@ -341,45 +335,52 @@ export function CareerPlanner() {
 
   if (!workspace && !error) return <section className={styles.loading}><LoaderCircle className="spin" size={22} />正在读取求职计划</section>;
   const confirmed = Boolean(workspace?.profile.confirmed_at);
-  const planningBasisTip = plan ? [
-    `${plan.basis.owned_question_count} 道个人题`,
-    `${plan.basis.due_question_count} 道待复习`,
-    `${plan.basis.recent_training_count} 次近期训练`,
-    plan.basis.evidence_focus,
-  ].filter(Boolean).join(" · ") : "";
   const generationLabel = generationJob?.stage ?? "正在创建后台任务";
   const generationRemaining = generationJob ? remainingSeconds(generationJob, generationSeconds) : 60;
-  const trainingMixSummary = weeklyMixSummary(profile.weekly_hours);
   const generationStep = (generationJob?.progress ?? 0) < 35 ? 0 : (generationJob?.progress ?? 0) < 80 ? 1 : 2;
+  const activeItems = (plan?.items ?? []).filter((item) => item.status !== "completed" && item.status !== "skipped");
+  const remainingMinutes = activeItems.reduce((total, item) => total + item.estimated_minutes, 0);
+  const todayItems = (plan?.items ?? []).filter((item) => item.scheduled_date === today && item.status !== "skipped");
+  const selectedDate = days[selectedDay];
+  const selectedItems = itemsByDay[selectedDay];
 
   return <div className={styles.layout}>
+    <section className="grid border-y border-[var(--line)] md:grid-cols-[minmax(0,1.6fr)_minmax(150px,0.7fr)_minmax(150px,0.7fr)]">
+      <div className="py-5 pr-5"><span className="text-xs text-[var(--muted)]">本周目标</span><strong className="mt-2 block text-base leading-6 text-[var(--ink)]">{plan?.goal || (confirmed ? "生成本周草稿后开始执行" : "先确认求职画像")}</strong></div>
+      <div className="border-t border-[var(--line)] py-5 md:border-l md:border-t-0 md:px-5"><span className="text-xs text-[var(--muted)]">剩余训练量</span><strong className="mt-2 block text-xl text-[var(--ink)]">{plan ? `${remainingMinutes} 分钟` : "--"}</strong><small className="mt-1 block text-xs text-[var(--muted)]">{activeItems.length} 项未完成</small></div>
+      <div className="border-t border-[var(--line)] py-5 md:border-l md:border-t-0 md:pl-5"><span className="text-xs text-[var(--muted)]">今日任务</span><strong className="mt-2 block text-xl text-[var(--ink)]">{plan ? `${todayItems.length} 项` : "--"}</strong><small className="mt-1 block text-xs text-[var(--muted)]">{todayItems.filter((item) => item.status === "completed").length} 项已完成</small></div>
+    </section>
     {confirmed && !profileExpanded ? <section className={styles.profileSummary}><div><span>已确认画像</span><strong>{profile.target_role}{profile.target_level ? ` · ${profile.target_level}` : ""}</strong><small>每周 {profile.weekly_hours} 小时 · {profile.available_weekdays.length} 个训练日 · 偏好{slotLabels[profile.preferred_time_slot]}</small></div><button className={styles.secondaryButton} type="button" onClick={() => setProfileExpanded(true)}><Pencil size={14} />编辑画像</button></section> : <form className={styles.profilePanel} onSubmit={saveProfile}>
       <header className={styles.sectionHeader}><div><span>长期目标</span><h2>求职画像</h2></div>{confirmed && <small><Check size={13} />已确认</small>}</header>
-      <p className={styles.privacy}>只有你确认的画像会参与规划，AI 建议不会自动修改长期数据。</p>
       <div className={styles.profileGrid}>
         <Field label="目标岗位"><input required maxLength={150} value={profile.target_role} onChange={(event) => setProfile({ ...profile, target_role: event.target.value })} /></Field>
-        <Field label="目标级别"><input maxLength={50} value={profile.target_level} onChange={(event) => setProfile({ ...profile, target_level: event.target.value })} /></Field>
-        <Field label="目标公司"><input value={profile.target_companies} onChange={(event) => setProfile({ ...profile, target_companies: event.target.value })} placeholder="用逗号分隔" /></Field>
-        <Field label="意向城市"><input value={profile.preferred_cities} onChange={(event) => setProfile({ ...profile, preferred_cities: event.target.value })} placeholder="用逗号分隔" /></Field>
         <Field label="每周投入（小时）"><input type="number" min={1} max={80} value={profile.weekly_hours} onChange={(event) => setProfile({ ...profile, weekly_hours: Number(event.target.value) })} /></Field>
-        <fieldset className={styles.slotField}><legend>偏好时段</legend><div>{Object.entries(slotLabels).map(([value, label]) => <button type="button" aria-pressed={profile.preferred_time_slot === value} onClick={() => setProfile({ ...profile, preferred_time_slot: value as keyof typeof slotLabels })} key={value}>{label}</button>)}</div></fieldset>
         <fieldset className={styles.weekdays}><legend>可训练星期</legend>{dayLabels.map((label, index) => <label key={label}><input type="checkbox" checked={profile.available_weekdays.includes(index)} onChange={() => setProfile({ ...profile, available_weekdays: profile.available_weekdays.includes(index) ? profile.available_weekdays.filter((item) => item !== index) : [...profile.available_weekdays, index].sort() })} /><span>{label.slice(1)}</span></label>)}</fieldset>
-        <Field label="现实约束" wide><textarea maxLength={2000} value={profile.constraints} onChange={(event) => setProfile({ ...profile, constraints: event.target.value })} placeholder="例如：工作日晚间最多 1 小时、周日只做复盘" /></Field>
       </div>
+      <details className="group mt-4 border-y border-[var(--line)] py-1">
+        <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between text-sm font-medium text-[var(--text-secondary)]">更多求职偏好 <ChevronRight className="transition-transform group-open:rotate-90" size={16} /></summary>
+        <div className={styles.profileGrid}>
+          <Field label="目标级别"><input maxLength={50} value={profile.target_level} onChange={(event) => setProfile({ ...profile, target_level: event.target.value })} /></Field>
+          <Field label="目标公司"><input value={profile.target_companies} onChange={(event) => setProfile({ ...profile, target_companies: event.target.value })} placeholder="用逗号分隔" /></Field>
+          <Field label="意向城市"><input value={profile.preferred_cities} onChange={(event) => setProfile({ ...profile, preferred_cities: event.target.value })} placeholder="用逗号分隔" /></Field>
+          <fieldset className={styles.slotField}><legend>偏好时段</legend><div>{Object.entries(slotLabels).map(([value, label]) => <button type="button" aria-pressed={profile.preferred_time_slot === value} onClick={() => setProfile({ ...profile, preferred_time_slot: value as keyof typeof slotLabels })} key={value}>{label}</button>)}</div></fieldset>
+          <Field label="现实约束" wide><textarea maxLength={2000} value={profile.constraints} onChange={(event) => setProfile({ ...profile, constraints: event.target.value })} placeholder="例如：工作日晚间最多 1 小时、周日只做复盘" /></Field>
+        </div>
+      </details>
       <div className={styles.actions}>{confirmed && <button className={styles.dangerButton} disabled={busy === "profile"} type="button" onClick={() => void deleteProfile()}><Trash2 size={14} />清除画像</button>}{confirmed && <button className={styles.secondaryButton} type="button" onClick={() => setProfileExpanded(false)}>取消编辑</button>}<Button disabled={busy === "profile" || profile.available_weekdays.length === 0} type="submit">{busy === "profile" ? <LoaderCircle className="spin" size={15} /> : <Save size={15} />}确认画像</Button></div>
     </form>}
 
     <section className={styles.scheduleSection}>
       <header className={styles.scheduleHeader}><div><span>本周行动</span><h2>训练日程</h2><p>{weekStart} 开始的一周</p></div><div>{workspace?.plan_history.length ? <label className={styles.historySelect}><span>历史周次</span><select value={draftId ? "draft" : plan?.id ?? ""} onChange={(event) => { const selected = workspace.plan_history.find((item) => item.id === event.target.value); if (selected) { setPlan(selected); setDraftId(null); setWeekStart(selected.week_start); setSelectedDay(defaultPlanDay(selected.items, selected.week_start)); } }}><option value="draft" disabled={!draftId}>{draftId ? "当前草稿" : "选择周次"}</option>{workspace.plan_history.map((item) => <option value={item.id} key={item.id}>{item.week_start} · {item.status === "completed" ? "已完成" : "进行中"}</option>)}</select></label> : null}<button className={styles.secondaryButton} type="button" disabled={!confirmed || busy === "generate"} onClick={() => void generatePlan()}>{busy === "generate" ? <LoaderCircle className="spin" size={15} /> : <RefreshCw size={15} />}{plan ? "重新生成草稿" : "生成本周草稿"}</button>{plan && <Button type="button" disabled={busy === "plan"} onClick={() => void savePlan()}><Save size={15} />{draftId ? "确认日程" : "保存调整"}</Button>}</div></header>
       {busy === "generate" && <div className={styles.generationPanel}><AiWorkReceipt title="正在生成本周训练草稿" description={generationLabel} activeStep={generationStep} steps={[{ label: "读取规划约束", detail: "岗位、可训练时间与现实限制" }, { label: "匹配训练证据", detail: "个人题库、待复习题与近期表现" }, { label: "生成可编辑草稿", detail: "确认前不会写入正式计划" }]} footer={`已等待 ${generationSeconds} 秒 · 预计还需约 ${generationRemaining} 秒，可以离开后再回来。`} /></div>}
-      {!confirmed && <div className={styles.empty}><Target size={20} /><strong>先确认求职画像</strong><p>岗位、每周时间和可训练星期是生成可执行日程的必要约束。</p></div>}
-      {confirmed && !plan && busy !== "generate" && <div className={styles.empty}><Bot size={22} /><strong>生成本周训练草稿</strong><p>会结合个人题库、待复习题和最近训练证据生成草稿，确认后才保存。</p><Button type="button" onClick={() => void generatePlan()}>生成本周草稿 <ChevronRight size={15} /></Button></div>}
+      {!confirmed && <div className={styles.empty}><Target size={20} /><strong>先确认求职画像</strong></div>}
+      {confirmed && !plan && busy !== "generate" && <div className={styles.empty}><Button type="button" onClick={() => void generatePlan()}>生成本周草稿 <ChevronRight size={15} /></Button></div>}
       {plan && <>
-        <div className={styles.planHint}><span><Bot size={14} />{trainingMixSummary}<button className={styles.helpButton} type="button" aria-label={`规划依据：${planningBasisTip}`} data-tip={planningBasisTip}><CircleHelp size={14} /></button></span>{draftId && <b>待确认</b>}</div>
+        {draftId && <div className={styles.planHint}><b>待确认</b></div>}
         <label className={styles.weekGoal}><span>本周目标</span><input value={plan.goal} maxLength={500} onChange={(event) => setPlan({ ...plan, goal: event.target.value })} /></label>
         <nav className={styles.mobileDays} aria-label="选择日程日期">{days.map((day, index) => <button className={day.date === today ? styles.todayTab : undefined} type="button" aria-pressed={selectedDay === index} onClick={() => setSelectedDay(index)} key={day.date}><span>{day.label}</span><small>{day.date.slice(5)}</small><i>{itemsByDay[index].length}</i></button>)}</nav>
-        <div className={styles.weekBoard}>{days.map((day, index) => <section className={`${styles.dayColumn} ${selectedDay === index ? styles.activeDay : ""} ${day.date === today ? styles.todayColumn : ""}`} key={day.date}><header><div><strong>{day.label}{day.date === today && <em>今天</em>}</strong><span>{day.date.slice(5)}</span></div><small>{itemsByDay[index].reduce((total, item) => total + item.estimated_minutes, 0)} 分钟</small></header><div className={styles.dayItems}>{itemsByDay[index].map((item) => <PlanTask item={item} questions={workspace?.question_options ?? []} onUpdate={updateItem} onReplaceQuestion={replaceQuestion} onMove={() => moveToNextDay(item, profile.available_weekdays, weekStart, updateItem)} onStatus={(status) => void setItemStatus(item, status)} onStart={() => void startItem(item)} key={item.id} />)}{itemsByDay[index].length === 0 && <div className={`${styles.restDay} ${index === 6 ? styles.sundayRest : ""}`}><span>{index === 6 ? "休息" : "暂无安排"}</span><small>{index === 6 ? "给这一周留一点余量" : "保持留白，按实际进度调整"}</small></div>}</div></section>)}</div>
-        <div className={styles.scheduleFooter}><button className={styles.addButton} type="button" onClick={addItem}><Plus size={15} />添加到{days[selectedDay].label}</button>{workspace?.weekly_plan && !draftId && <button className={styles.dangerButton} type="button" disabled={busy === "plan"} onClick={() => void deletePlan()}><Trash2 size={14} />删除本周日程</button>}<small>AI 只生成草稿；日期、题目和难度都可以调整。</small></div>
+        <div className={styles.weekBoard}><section className={`${styles.dayColumn} ${selectedDate.date === today ? styles.todayColumn : ""}`}><header><div><strong>{selectedDate.label}{selectedDate.date === today && <em>今天</em>}</strong><span>{selectedDate.date.slice(5)}</span></div><small>{selectedItems.reduce((total, item) => total + item.estimated_minutes, 0)} 分钟</small></header><div className={styles.dayItems}>{selectedItems.map((item) => <PlanTask item={item} questions={workspace?.question_options ?? []} onUpdate={updateItem} onReplaceQuestion={replaceQuestion} onMove={() => moveToNextDay(item, profile.available_weekdays, weekStart, updateItem)} onStatus={(status) => void setItemStatus(item, status)} onStart={() => void startItem(item)} key={item.id} />)}{selectedItems.length === 0 && <div className={`${styles.restDay} ${selectedDay === 6 ? styles.sundayRest : ""}`}><span>{selectedDay === 6 ? "休息" : "暂无安排"}</span><small>{selectedDay === 6 ? "给这一周留一点余量" : "保持留白，按实际进度调整"}</small></div>}</div></section></div>
+        <div className={styles.scheduleFooter}><button className={styles.addButton} type="button" onClick={addItem}><Plus size={15} />添加到{days[selectedDay].label}</button>{workspace?.weekly_plan && !draftId && <button className={styles.dangerButton} type="button" disabled={busy === "plan"} onClick={() => void deletePlan()}><Trash2 size={14} />删除本周日程</button>}</div>
       </>}
     </section>
     {message && <p className={styles.message}>{message}</p>}{error && <p className={styles.error} role="alert">{error}</p>}

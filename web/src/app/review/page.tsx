@@ -222,7 +222,6 @@ function ReviewContent() {
         <PageIntro
           eyebrow="步骤 2 / 3 · 材料校正"
           title="确认简历文本是否完整"
-          description="这里展示解析器从文件中实际提取的内容。先修正乱码、断行或遗漏，再让 DeepSeek 提取带原文证据的技能与项目。"
           actions={material ? <StatusBadge tone={material.document.warnings.length ? "warning" : "success"}><FileCheck2 size={13} />真实解析结果</StatusBadge> : undefined}
         />
         <InterviewFlowProgress current={2} />

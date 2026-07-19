@@ -26,7 +26,7 @@ const exercises: Record<CoachingMode, CoachingExerciseType[]> = {
 };
 
 const fieldClass =
-  "w-full rounded-md border border-[var(--line)] bg-[#fafbfb] px-3.5 py-3 text-sm leading-relaxed text-[var(--ink)] outline-none focus:border-[var(--accent)] focus:shadow-[0_0_0_3px_rgb(13_148_136/10%)]";
+  "w-full rounded-lg border border-[var(--line)] bg-[var(--bg-canvas)] px-4 py-3 text-sm leading-relaxed text-[var(--ink)] outline-none focus:border-[var(--accent)] focus:shadow-[0_0_0_1px_var(--accent-light)]";
 
 const choiceButtonClass =
   "min-h-[42px] rounded-md border border-[var(--line)] bg-[#fafbfb] px-3 text-xs text-[var(--muted)] transition-colors";
@@ -48,7 +48,7 @@ export function CoachingSetup({
   const router = useRouter();
   const [role, setRole] = useState("AI 应用开发工程师");
   const [goal, setGoal] = useState(initialFocus);
-  const [channel, setChannel] = useState<"text" | "voice">("text");
+  const [channel] = useState<"text" | "voice">("text");
   const [exercise, setExercise] = useState<CoachingExerciseType>(exercises[mode][0]);
   const [difficulty, setDifficulty] = useState<CoachingDifficulty>(initialDifficulty);
   const [session, setSession] = useState<CoachingSession | null>(null);
@@ -153,14 +153,11 @@ export function CoachingSetup({
           <h1 className="mt-2.5 text-[30px] font-extrabold leading-tight text-[var(--ink)] max-[700px]:text-[27px]">
             设定本次训练目标
           </h1>
-          <p className="mt-2.5 max-w-[720px] text-sm leading-[1.75] text-[var(--muted)]">
-            训练教练会先生成任务，你确认后再正式开始。
-          </p>
         </div>
       </header>
 
       <div className="mt-6 grid grid-cols-[minmax(0,1fr)_360px] items-start gap-6 max-[900px]:grid-cols-1">
-        <form className="grid gap-5 rounded-lg border border-[var(--line)] bg-white p-6 text-[var(--ink)]" onSubmit={create}>
+        <form className="grid gap-5 rounded-xl border border-[var(--line)] bg-white p-6 text-[var(--ink)]" onSubmit={create}>
           <label className="grid gap-2">
             <span className="text-[13px] font-semibold">目标岗位</span>
             <input
@@ -204,7 +201,7 @@ export function CoachingSetup({
             </div>
           )}
 
-          <fieldset className="grid grid-cols-3 gap-1.5 border-0 max-[620px]:grid-cols-1">
+          <fieldset className="grid grid-cols-2 gap-1.5 border-0 max-[620px]:grid-cols-1">
             <legend className="col-span-full mb-0.5 text-[13px] font-semibold">训练题型</legend>
             {exercises[mode].map((item) => (
               <button
@@ -234,24 +231,6 @@ export function CoachingSetup({
             ))}
           </fieldset>
 
-          <fieldset className="grid grid-cols-2 gap-1.5 border-0">
-            <legend className="col-span-full mb-0.5 text-[13px] font-semibold">回答方式</legend>
-            <button
-              type="button"
-              className={cn(choiceButtonClass, channel === "text" && choiceSelectedClass)}
-              onClick={() => setChannel("text")}
-            >
-              文字
-            </button>
-            <button
-              type="button"
-              className={cn(choiceButtonClass, channel === "voice" && choiceSelectedClass)}
-              onClick={() => setChannel("voice")}
-            >
-              语音
-            </button>
-          </fieldset>
-
           {error && (
             <p className="border-l-[3px] border-[var(--danger)] bg-[#fff4f2] px-3 py-2.5 text-[13px] leading-relaxed text-[#973f37]">
               {error}
@@ -274,7 +253,7 @@ export function CoachingSetup({
         </form>
 
         <aside
-          className="sticky top-[88px] rounded-lg border border-[var(--line)] bg-white p-[22px] text-[var(--ink)] max-[900px]:static max-[620px]:p-[18px]"
+          className="sticky top-[88px] rounded-xl border border-[var(--line)] bg-white p-[22px] text-[var(--ink)] max-[900px]:static max-[620px]:p-[18px]"
           aria-live="polite"
         >
           {!session ? (
@@ -282,10 +261,7 @@ export function CoachingSetup({
               <span className="grid size-[38px] place-items-center rounded-md bg-[var(--soft)] text-[var(--accent-dark)]">
                 <Target size={20} />
               </span>
-              <h2 className="mt-3.5 text-lg font-semibold">任务将在这里确认</h2>
-              <p className="mt-2 text-[13px] leading-relaxed text-[var(--muted)]">
-                生成后可以先检查训练目标、场景、时长和评价维度。
-              </p>
+              <h2 className="mt-3.5 text-lg font-semibold">训练任务</h2>
             </>
           ) : (
             <>
@@ -294,9 +270,9 @@ export function CoachingSetup({
               <p className="mt-2 text-[13px] leading-relaxed text-[var(--muted)]">{session.task.objective}</p>
 
               {session.task.source_questions?.[0] && (
-                <blockquote className="mt-3.5 border-l-[3px] border-[var(--accent)] bg-[#f4f8f7] px-3 py-2.5">
+                <blockquote className="mt-3.5 border-l-[3px] border-[var(--accent)] bg-[var(--bg-subtle)] px-3 py-2.5">
                   <strong className="block text-[13px]">{session.task.source_questions[0].title}</strong>
-                  <span className="mt-1.5 block text-xs leading-relaxed text-[#41514f]">
+                  <span className="mt-1.5 block text-xs leading-relaxed text-[var(--text-secondary)]">
                     {session.task.source_questions[0].prompt}
                   </span>
                   {session.task.source_questions[0].evidence_quotes?.[0] && (
@@ -337,7 +313,7 @@ export function CoachingSetup({
                 {session.task.dimensions.map((item) => (
                   <span
                     key={item}
-                    className="rounded border border-[#b9d8d4] bg-[var(--accent-soft)] px-2 py-1 text-xs text-[#176c63]"
+                    className="rounded border border-[var(--border-hover)] bg-[var(--accent-soft)] px-2 py-1 text-xs text-[var(--text-secondary)]"
                   >
                     {COACHING_DIMENSION_LABELS[item] ?? item}
                   </span>

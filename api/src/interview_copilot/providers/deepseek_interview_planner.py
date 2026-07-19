@@ -66,6 +66,8 @@ class DeepSeekInterviewPlanGenerator:
    每个阶段必须填写稳定 kind：warmup、project、technical、system_design、coding、behavioral、
    candidate_qa 之一。
 3. 每个阶段生成 1 至 8 道问题，问题必须能根据候选人经历或岗位要求进行回答。
+   20 至 30 分钟计划控制在 3 至 4 个阶段、合计 6 至 8 道主问题；45 分钟计划控制在
+   4 至 5 个阶段、合计 8 至 12 道主问题。skills 每阶段最多 4 项，follow_up_directions 最多 3 项。
 4. 不得编造候选人没有提供的项目、指标或职责；不确定内容应设计为核实问题。
 5. follow_up_directions 只写追问方向，不生成假定结论。
 6. 技术深度越高，越应覆盖实现机制、边界条件、故障处理、量化依据和技术取舍，
@@ -91,33 +93,40 @@ class DeepSeekInterviewPlanGenerator:
 16. 非 coding 阶段的 coding_spec 必须为 null。
 17. 使用中文，严格返回符合 JSON Schema 的 JSON，不要 Markdown 代码块。
 
-JSON Schema：{json.dumps(schema, ensure_ascii=False)}
+JSON Schema：{json.dumps(schema, ensure_ascii=False, separators=(',', ':'))}
 
 <候选人材料>
-{json.dumps(data, ensure_ascii=False)}
+{json.dumps(data, ensure_ascii=False, separators=(',', ':'))}
 </候选人材料>"""
         try:
-            async with httpx.AsyncClient(
-                base_url=self._base_url, timeout=httpx.Timeout(90, connect=10)
-            ) as client:
-                response = await client.post(
-                    "/chat/completions",
-                    headers={"Authorization": f"Bearer {self._api_key}"},
-                    json={
-                        "model": self.model_name,
-                        "messages": [{"role": "user", "content": prompt}],
-                        "response_format": {"type": "json_object"},
-                        "temperature": 0,
-                        "max_tokens": 8000,
-                    },
-                )
-                response.raise_for_status()
-                content = response.json()["choices"][0]["message"]["content"]
-        except (httpx.HTTPError, KeyError, IndexError, TypeError) as exc:
-            raise InterviewPlanningError("DeepSeek 面试计划生成失败") from exc
+            content = await self._complete(prompt)
+        except (httpx.HTTPError, KeyError, IndexError, TypeError, RuntimeError) as exc:
+            raise InterviewPlanningError("AI 面试计划生成失败") from exc
         if not isinstance(content, str) or not content.strip():
-            raise InterviewPlanningError("DeepSeek 返回了空的面试计划")
+            raise InterviewPlanningError("AI 返回了空的面试计划")
         try:
             return InterviewPlan.model_validate_json(content)
         except ValidationError as exc:
-            raise InterviewPlanningError("DeepSeek 返回的面试计划结构无效") from exc
+            raise InterviewPlanningError("AI 返回的面试计划结构无效") from exc
+
+    async def _complete(self, prompt: str) -> str:
+        async with httpx.AsyncClient(
+            base_url=self._base_url, timeout=httpx.Timeout(90, connect=10)
+        ) as client:
+            response = await client.post(
+                "/chat/completions",
+                headers={"Authorization": f"Bearer {self._api_key}"},
+                json={
+                    "model": self.model_name,
+                    "messages": [{"role": "user", "content": prompt}],
+                    "response_format": {"type": "json_object"},
+                    "thinking": {"type": "disabled"},
+                    "temperature": 0,
+                    "max_tokens": 8000,
+                },
+            )
+            response.raise_for_status()
+            content = response.json()["choices"][0]["message"]["content"]
+        if not isinstance(content, str):
+            raise RuntimeError("AI 返回了无效文本")
+        return content

@@ -44,9 +44,7 @@ class MemoryCache:
 
 
 def test_normalizes_only_whitespace_and_line_endings() -> None:
-    assert normalize_document_text("第一行\r\n第二行  \n\n\n\n末行") == (
-        "第一行\n第二行\n\n\n末行"
-    )
+    assert normalize_document_text("第一行\r\n第二行  \n\n\n\n末行") == ("第一行\n第二行\n\n\n末行")
 
 
 @pytest.mark.asyncio
@@ -60,8 +58,8 @@ async def test_extracts_a_versioned_profile() -> None:
     )
 
     assert result.model == "test-model"
-    assert result.prompt_version == "resume-extraction-v1"
-    assert result.profile.schema_version == "1.0"
+    assert result.prompt_version == "resume-extraction-v2-compact"
+    assert result.profile.schema_version == "1.1"
     assert result.profile.skills[0].evidence == "使用 FastAPI 开发服务"
 
 
@@ -76,9 +74,7 @@ async def test_rejects_empty_normalized_resume() -> None:
 @pytest.mark.asyncio
 async def test_reuses_extraction_only_for_same_user_and_context() -> None:
     extractor = StubResumeExtractor()
-    use_case = ExtractResumeProfile(
-        extractor, model_name="test-model", cache=MemoryCache()
-    )
+    use_case = ExtractResumeProfile(extractor, model_name="test-model", cache=MemoryCache())
     owner = uuid4()
 
     first = await use_case.execute(
@@ -107,9 +103,7 @@ async def test_reuses_extraction_only_for_same_user_and_context() -> None:
 @pytest.mark.asyncio
 async def test_extracts_again_when_resume_changes() -> None:
     extractor = StubResumeExtractor()
-    use_case = ExtractResumeProfile(
-        extractor, model_name="test-model", cache=MemoryCache()
-    )
+    use_case = ExtractResumeProfile(extractor, model_name="test-model", cache=MemoryCache())
     owner = uuid4()
 
     await use_case.execute(
@@ -200,3 +194,35 @@ async def test_deepseek_reports_failure_after_repair_is_still_invalid() -> None:
             )
     finally:
         await client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_truncated_output_does_not_trigger_a_second_paid_call() -> None:
+    calls = 0
+
+    async def handler(_: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        return _deepseek_response('{"target_role":"后端工程师')
+
+    client = httpx.AsyncClient(
+        base_url="https://example.invalid",
+        transport=httpx.MockTransport(handler),
+    )
+    provider = DeepSeekResumeExtractor(
+        api_key="test-key",
+        base_url="https://example.invalid",
+        model="test-model",
+        client=client,
+    )
+    try:
+        with pytest.raises(ResumeExtractionError, match="超过输出限制"):
+            await provider.extract(
+                resume_text="使用 FastAPI 开发服务",
+                jd="需要 Python 经验",
+                target_role="后端工程师",
+            )
+    finally:
+        await client.aclose()
+
+    assert calls == 1

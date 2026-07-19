@@ -4,7 +4,7 @@ import { ChartNoAxesCombined, GraduationCap, LibraryBig, LogOut, Menu, UserRound
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
-import { AuthUser, authUserSchema } from "@/lib/auth";
+import { useAuth } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -18,18 +18,7 @@ const navigation: Array<{ key: string; href: string; label: string; icon: typeof
 
 export function SiteHeader({ active }: { active: ActivePage }) {
   const [open, setOpen] = useState(false);
-  const [user, setUser] = useState<AuthUser | null>(null);
-
-  useEffect(() => {
-    let active = true;
-    void fetch("/api/auth/me", { cache: "no-store" }).then(async (response) => {
-      if (!response.ok || !active) return;
-      const payload: unknown = await response.json();
-      const parsed = authUserSchema.safeParse(typeof payload === "object" && payload && "user" in payload ? payload.user : null);
-      if (active && parsed.success) setUser(parsed.data);
-    }).catch(() => undefined);
-    return () => { active = false; };
-  }, []);
+  const { user, logout } = useAuth();
 
   useEffect(() => {
     if (!open) return;
@@ -39,12 +28,6 @@ export function SiteHeader({ active }: { active: ActivePage }) {
     window.addEventListener("keydown", closeOnEscape);
     return () => window.removeEventListener("keydown", closeOnEscape);
   }, [open]);
-
-  async function logout() {
-    await fetch("/api/auth/logout", { method: "POST" });
-    setUser(null);
-    window.location.href = "/";
-  }
 
   return (
     <header className="site-header">

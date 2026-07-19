@@ -5,17 +5,17 @@ import type { ButtonHTMLAttributes } from "react";
 import { cn } from "@/lib/cn";
 
 export const buttonVariants = cva(
-  "inline-flex shrink-0 items-center justify-center gap-2 rounded-full font-semibold transition-[background-color,color,border-color,box-shadow,transform] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--canvas)] disabled:pointer-events-none disabled:opacity-50 [&_svg]:shrink-0 hover:-translate-y-0.5 active:translate-y-0",
+  "inline-flex shrink-0 items-center justify-center gap-2 rounded-lg font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-light)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-canvas)] disabled:pointer-events-none disabled:opacity-50 [&_svg]:shrink-0",
   {
     variants: {
       variant: {
-        primary: "border border-[var(--pine-deep-color)] bg-[var(--pine-deep-color)] !text-white shadow-sm hover:bg-[var(--pine-color)] hover:!text-white",
-        secondary: "border border-[var(--line-strong)] bg-[var(--surface)] text-[var(--ink)] shadow-sm hover:border-[var(--pine-color)] hover:bg-[var(--surface-muted)]",
-        ghost: "border border-transparent bg-transparent text-[var(--muted)] hover:bg-[var(--soft)] hover:text-[var(--ink)]",
-        subtle: "border border-transparent bg-[var(--accent-soft)] text-[var(--accent-dark)] hover:bg-[hsl(var(--pine)/16%)]",
-        danger: "border border-[hsl(var(--vermilion)/24%)] bg-[hsl(var(--vermilion)/7%)] text-[var(--danger)] hover:bg-[hsl(var(--vermilion)/12%)]",
+        primary: "border border-[var(--accent)] bg-[var(--accent)] !text-white hover:border-[var(--accent-hover)] hover:bg-[var(--accent-hover)] hover:!text-white",
+        secondary: "border border-[var(--border-default)] bg-transparent text-[var(--text-primary)] hover:border-[var(--border-hover)] hover:bg-[var(--bg-hover)]",
+        ghost: "border border-transparent bg-transparent text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]",
+        subtle: "border border-transparent bg-[var(--accent-light)] text-[var(--accent)] hover:bg-[var(--bg-hover)]",
+        danger: "border border-[var(--danger-border)] bg-[var(--danger-bg)] text-[var(--danger)] hover:border-[var(--danger)] hover:bg-[var(--danger)] hover:text-white",
         link: "h-auto border-0 bg-transparent p-0 text-[var(--accent-dark)] underline-offset-4 hover:underline",
-        onDark: "border border-white bg-white !text-[var(--pine-deep-color)] shadow-sm hover:bg-white/92 hover:!text-[var(--pine-deep-color)]",
+        onDark: "border border-[var(--bg-surface)] bg-[var(--bg-surface)] !text-[var(--accent)] hover:bg-[var(--bg-subtle)] hover:!text-[var(--accent-hover)]",
         linkOnDark: "h-auto border-0 bg-transparent p-0 !text-white underline-offset-4 hover:underline",
       },
       size: {

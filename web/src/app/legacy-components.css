@@ -1,0 +1,293 @@
+/* Legacy class bridge. New UI should use Tailwind and components/ui primitives. */
+
+/* ── Shared utility classes (page layout, cards, forms) ── */
+
+.page-container {
+  margin-left: auto;
+  margin-right: auto;
+  width: min(72rem, calc(100% - 3rem));
+  padding-bottom: 80px;
+  padding-top: 48px;
+}
+@media (max-width: 700px) {
+  .page-container { width: calc(100% - 1.75rem); padding-top: 32px; }
+}
+
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: none;
+  transition: color 150ms;
+}
+.back-link:hover { color: var(--ink); }
+
+.card-panel {
+  border: 1px solid var(--line);
+  border-radius: 1rem;
+  background: var(--surface);
+  box-shadow: var(--shadow-soft);
+  transition: box-shadow 200ms, transform 200ms;
+}
+.card-panel.clickable:hover {
+  box-shadow: var(--shadow-lift);
+  transform: translateY(-2px);
+}
+
+.field-input {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 0.6rem;
+  background: #fafbfb;
+  padding: 10px 14px;
+  color: var(--ink);
+  font-size: 14px;
+  line-height: 1.6;
+  outline: none;
+  transition: border-color 160ms, box-shadow 160ms;
+}
+.field-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgb(var(--accent-rgb) / 10%);
+}
+.field-input::placeholder { color: #9a9a9a; }
+
+.field-label-sm {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  padding: 3px 10px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.chip.active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-dark);
+  font-weight: 600;
+}
+
+/* ── Page-level transitions ── */
+
+a, button, .card-panel {
+  transition: background-color 150ms ease, border-color 150ms ease,
+              color 150ms ease, box-shadow 200ms ease, transform 200ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Interview Site Refresh v3 normalization */
+* { letter-spacing: 0 !important; }
+:where(h1, h2, h3, h4, h5, h6, strong, b),
+.font-bold,
+.font-extrabold { font-weight: 600 !important; }
+
+.primary-cta,
+.primary-button,
+.landing-primary,
+.join-interview-button,
+.submit-answer {
+  border: 1px solid var(--accent);
+  border-radius: 0.625rem;
+  background: var(--accent);
+  color: white;
+  box-shadow: none;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease;
+}
+.primary-cta:hover,
+.primary-button:hover:not(:disabled),
+.landing-primary:hover,
+.join-interview-button:hover,
+.submit-answer:hover:not(:disabled) {
+  border-color: var(--accent-hover);
+  background: var(--accent-hover);
+  box-shadow: none;
+  transform: none;
+}
+.secondary-button,
+.secondary-action,
+.ghost-action,
+.danger-action,
+.danger-button {
+  border-radius: 0.625rem;
+  box-shadow: none;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease;
+}
+.secondary-button,
+.secondary-action {
+  border-color: var(--border-default);
+  background: transparent;
+  color: var(--text-primary);
+}
+.secondary-button:hover,
+.secondary-action:hover { border-color: var(--border-hover); background: var(--bg-hover); }
+.danger-action,
+.danger-button {
+  border-color: var(--danger-border);
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+.card-panel,
+.form-section,
+.review-block,
+.source-preview,
+.blueprint-timeline,
+.blueprint-summary,
+.overall-score,
+.score-breakdown,
+.report-strength,
+.evidence-item,
+.trend-panel,
+.recommendation-panel,
+.matrix-panel,
+.history-list,
+.filter-bar,
+.question-row-card,
+.profile-summary-strip,
+.question-document-list {
+  border-color: var(--border-default);
+  border-radius: 0.75rem;
+  background: var(--bg-surface);
+  box-shadow: none;
+}
+.card-panel.clickable:hover {
+  border-color: var(--border-hover);
+  box-shadow: var(--shadow-lift);
+  transform: translateY(-0.125rem);
+}
+
+.field-input,
+.text-area,
+.input-shell,
+.answer-box,
+.study-panel :where(input, textarea, select) {
+  border-color: var(--border-default);
+  border-radius: 0.625rem;
+  background: var(--bg-canvas);
+}
+.field-input:focus,
+.text-area:focus,
+.input-shell:focus-within,
+.answer-box:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent-light);
+}
+.field-input::placeholder,
+.text-area::placeholder,
+.answer-box::placeholder { color: var(--text-placeholder); }
+
+.nav-link { border-radius: 0.625rem; font-size: 0.875rem; font-weight: 500; }
+.nav-link-active,
+.nav-link-active:hover { background: var(--accent); color: white; }
+.status-badge { border-radius: 999px; padding: 0.25rem 0.75rem; font-weight: 500; }
+
+/* The interview room stays dark, but uses flat surfaces and semantic status colors. */
+.feishu-room {
+  --chamber: #0f0f0f;
+  --chamber-light: #1a1a1a;
+  --chamber-glow: #a0a0a0;
+  --chamber-line: #2a2a2a;
+  --chamber-copy: #ffffff;
+  --chamber-muted: #a0a0a0;
+}
+.feishu-room .meeting-header,
+.feishu-room .meeting-controls { background: var(--chamber-light); backdrop-filter: none; }
+.feishu-room .video-stage,
+.feishu-room .interviewer-tile { background: var(--chamber); }
+.feishu-room .interviewer-tile {
+  margin: 1rem;
+  border: 1px solid var(--chamber-line);
+  border-radius: 0.75rem;
+}
+.feishu-room .interviewer-avatar {
+  border: 2px solid #3a3a3a;
+  background: var(--chamber-light);
+  box-shadow: none !important;
+  animation: none !important;
+}
+.feishu-room .question-caption {
+  border-color: var(--chamber-line) !important;
+  border-radius: 0.75rem !important;
+  background: var(--chamber-light) !important;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+.feishu-room .timeline-phase.active > span { box-shadow: none; }
+.feishu-room .sound-wave i {
+  background: var(--chamber-muted);
+  animation: none;
+}
+.feishu-room .sound-wave.is-speaking i {
+  animation: wave-v3 100ms linear infinite alternate;
+  animation-delay: calc(var(--wave-index) * -10ms);
+}
+.feishu-room .meeting-control svg,
+.feishu-room .hangup-button,
+.feishu-room .hangup-button svg { border-radius: 0.625rem !important; box-shadow: none; }
+.feishu-room .hangup-button {
+  border: 1px solid var(--danger-border);
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+.feishu-room .hangup-button:hover { border-color: var(--danger); background: var(--danger); color: white; }
+.feishu-room .hangup-button svg { background: transparent; }
+.feishu-room .recording-mark { color: #fca5a5; }
+.mobile-progress-button,
+.mobile-progress-close { display: none; }
+
+@keyframes wave-v3 {
+  from { transform: scaleY(0.25); }
+  to { transform: scaleY(1); }
+}
+
+@media (max-width: 768px) {
+  .mobile-progress-button { display: grid; }
+  .feishu-room .meeting-sidebar {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 30;
+    display: none;
+    width: min(20rem, 88vw);
+    border-left: 1px solid var(--chamber-line) !important;
+    background: var(--chamber-light) !important;
+  }
+  .feishu-room .meeting-sidebar.progress-open { display: block; }
+  .mobile-progress-close {
+    display: grid;
+    width: 2.25rem;
+    height: 2.25rem;
+    place-items: center;
+    border: 1px solid var(--chamber-line);
+    border-radius: 0.625rem;
+    background: transparent;
+    color: var(--chamber-copy);
+  }
+}

@@ -5,7 +5,7 @@ from uuid import UUID
 
 from interview_copilot.domain.resume import ResumeExtractionResult, ResumeProfile
 
-PROMPT_VERSION = "resume-extraction-v1"
+PROMPT_VERSION = "resume-extraction-v2-compact"
 MAX_RESUME_CHARACTERS = 80_000
 MAX_JD_CHARACTERS = 30_000
 

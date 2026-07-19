@@ -30,7 +30,7 @@ export async function POST(request: Request) {
       headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
       body: JSON.stringify(parsed.data),
       cache: "no-store",
-      signal: AbortSignal.timeout(90_000),
+      signal: AbortSignal.timeout(150_000),
     });
     const payload: unknown = await response.json();
     return NextResponse.json(payload, { status: response.status });

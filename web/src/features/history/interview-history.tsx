@@ -21,14 +21,12 @@ import { trainingContextLabels } from "@/lib/training-context";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { Button } from "@/components/ui/button";
 
-type HistoryFilter = "all" | "interview" | "coaching" | "pending" | "reviewed";
+type HistoryFilter = "all" | "interview" | "coaching";
 
 const FILTERS: Array<{ value: HistoryFilter; label: string }> = [
   { value: "all", label: "全部" },
   { value: "interview", label: "模拟面试" },
   { value: "coaching", label: "专项训练" },
-  { value: "pending", label: "待完成" },
-  { value: "reviewed", label: "已复盘" },
 ];
 
 function errorMessage(payload: unknown) {
@@ -79,24 +77,18 @@ export function InterviewHistory() {
     all: items.length + coachingItems.length,
     interview: items.length,
     coaching: coachingItems.length,
-    pending: items.filter((item) => !isFinished(item) || (item.turn_count > 0 && item.report_status !== "ready")).length + coachingItems.filter((item) => item.status !== "completed").length,
-    reviewed: items.filter((item) => item.report_status === "ready").length + coachingItems.filter((item) => item.status === "completed").length,
   }), [coachingItems, items]);
 
-  const visibleItems = useMemo(() => items.filter((item) => {
+  const visibleItems = useMemo(() => items.filter(() => {
     if (filter === "coaching") return false;
-    if (filter === "pending") return !isFinished(item) || (item.turn_count > 0 && item.report_status !== "ready");
-    if (filter === "reviewed") return item.report_status === "ready";
     return true;
   }), [filter, items]);
-  const visibleCoaching = useMemo(() => coachingItems.filter((item) => {
+  const visibleCoaching = useMemo(() => coachingItems.filter(() => {
     if (filter === "interview") return false;
-    if (filter === "pending") return item.status !== "completed";
-    if (filter === "reviewed") return item.status === "completed";
     return true;
   }), [coachingItems, filter]);
 
-  if (loading) return <section className="review-empty-panel"><LoaderCircle className="spin" size={24} /><h2>正在读取训练记录</h2><p>正在从 PostgreSQL 汇总面试状态和回答证据。</p></section>;
+  if (loading) return <section className="review-empty-panel"><LoaderCircle className="spin" size={24} /><h2>正在读取训练记录</h2></section>;
   if (error) return <section className="review-empty-panel" role="alert"><History size={24} /><h2>训练记录读取失败</h2><p>{error}</p></section>;
   if (!items.length && !coachingItems.length) return <section className="review-empty-panel"><div className="review-empty-icon"><History size={24} /></div><h2>还没有训练记录</h2><p>完成模拟面试或专项训练后，回答与评价证据会出现在这里。</p><Button asChild className="mt-5"><Link href="/training">开始第一次训练 <ArrowRight size={15} /></Link></Button></section>;
 
@@ -105,7 +97,6 @@ export function InterviewHistory() {
       <div><span>全部记录</span><strong>{counts.all}</strong></div>
       <div><span>模拟面试</span><strong>{counts.interview}</strong></div>
       <div><span>专项训练</span><strong>{counts.coaching}</strong></div>
-      <div><span>已复盘</span><strong>{counts.reviewed}</strong></div>
     </section>
     <section className="history-filterbar">
       <SegmentedControl label="筛选训练记录" value={filter} onValueChange={setFilter} options={FILTERS.map((item) => ({ ...item, count: counts[item.value] }))} />

@@ -2,10 +2,9 @@
 
 import {
   ArrowRight,
-  ChartNoAxesColumnIncreasing,
+  ChevronDown,
   FileChartColumn,
   LoaderCircle,
-  ShieldCheck,
   Target,
 } from "lucide-react";
 import Link from "next/link";
@@ -89,27 +88,129 @@ export function AbilityProfile() {
 
   const latestPoint = profile?.kline.at(-1);
   const evidenceStability = latestPoint ? Math.round(latestPoint.confidence * 100) : null;
+  const prioritySkill = sortedSkills[0];
 
-  return <main className="content-container profile-page">
-    <PageIntro eyebrow="能力画像" title="看清哪些能力正在形成稳定证据" description="每场题目和难度可能不同，因此场次总分不直接作为成长结论；同一能力的原句证据、样本量和趋势才用于判断。" actions={<Button asChild><Link href="/setup">开始新训练 <ArrowRight size={16} /></Link></Button>} />
-    {error ? <section className="matrix-empty" role="alert"><Target size={21} /><span>{error}</span></section> : profile && <>
-      <section className="profile-summary-strip"><div><span>有效报告</span><strong>{profile.report_count}</strong></div><div><span>最近场次表现</span><strong>{latestPoint?.close ?? "--"}</strong></div><div><span>平均证据覆盖</span><strong>{profile.average_coverage === null ? "--" : `${profile.average_coverage}%`}</strong></div><div><span>最近证据稳定度</span><strong>{evidenceStability === null ? "--" : `${evidenceStability}%`}</strong></div></section>
-      <section className="profile-grid">
-        <div className="trend-panel kline-panel"><div className="panel-heading"><div><span>训练表现记录</span><small>总分仅描述当场表现；点击记录回看题目、难度和回答证据</small></div><ChartNoAxesColumnIncreasing size={19} /></div><AbilityKline points={profile.kline.map((point) => ({ ...point, date: new Intl.DateTimeFormat("zh-CN", { month: "numeric", day: "numeric" }).format(new Date(point.date)) }))} /></div>
-        <aside className={`recommendation-panel ${profile.next_training ? "" : "empty-recommendation"}`}><Target size={21} /><span>建议复训主题</span><h2>{profile.next_training ? "下一场优先训练" : "等待训练证据"}</h2><p>{profile.next_training ?? "至少生成一份有回答证据的报告后，系统才会形成复训建议。"}</p>{profile.next_training && latestPoint ? <button type="button" disabled={Boolean(retrainingKey)} onClick={() => void startRetraining({ key: "overall", focus: profile.next_training!, sourceSessionId: latestPoint.session_id })}>{retrainingKey === "overall" ? <LoaderCircle className="spin" size={14} /> : <Target size={14} />}创建综合复训</button> : <Link href="/history">查看训练记录 <ArrowRight size={14} /></Link>}</aside>
-      </section>
-      <section className="profile-evidence-note"><ShieldCheck size={18} /><div><strong>分数不等于确定结论</strong><span>能力分按证据覆盖率和单项置信度加权；可信度低于 40% 表示样本仍不足，优先补充训练证据。</span></div></section>
-      {actionError && <p className="profile-action-error" role="alert">{actionError}</p>}
-      <section className="ability-matrix-section coaching-ability-section">
-        <div className="ability-matrix-header"><div><h2>专项训练能力</h2><p>{profile.coaching.session_count ? `共 ${profile.coaching.session_count} 次训练，连续训练 ${profile.coaching.current_streak_days} 天；同一维度连续三次达到有效标准才标记稳定掌握` : "完成结构化表达或业务 Sense 训练后，这里会形成独立能力观察"}</p></div>{profile.coaching.next_mode && <Link href={`/training/new?mode=${profile.coaching.next_mode}&difficulty=${profile.coaching.next_difficulty}&focus=${encodeURIComponent(profile.coaching.next_focus ?? "")}`} className="secondary-button"><Target size={14} />练习最弱项</Link>}</div>
-        {profile.coaching.skills.length ? <div className="matrix-grid">{profile.coaching.skills.map((item) => <article key={item.dimension}><span className="matrix-score">{item.score}</span><div className="skill-summary"><div><h3>{COACHING_DIMENSION_LABELS[item.dimension] ?? item.dimension}</h3><span className="confidence-label">{COACHING_MODE_LABELS[item.mode]}</span></div><p>{item.evidence_count} 条回答证据 · {item.session_count} 次独立训练 · 可信度 {Math.round(item.confidence * 100)}%</p><small>{item.latest_feedback}</small></div><span className={`matrix-trend ${item.mastery_status === "stable" ? "up" : item.mastery_status === "improving" ? "flat" : "down"}`}>{item.mastery_status === "stable" ? "稳定掌握" : item.mastery_status === "improving" ? `正在进步${item.trend > 0 ? ` +${item.trend}` : ""}` : "继续练习"}</span><div className="skill-actions"><Link href={`/training/${item.source_session_id}`} title="查看来源训练" aria-label={`查看 ${COACHING_DIMENSION_LABELS[item.dimension] ?? item.dimension} 的来源训练`}><FileChartColumn size={14} /></Link><Link href={`/training/new?mode=${item.mode}&difficulty=${profile.coaching.next_difficulty}&focus=${encodeURIComponent(item.latest_feedback)}`} className="coaching-retrain"><Target size={13} />再练一次</Link></div></article>)}</div> : <div className="matrix-empty"><Target size={21} /><span>{profile.coaching.session_count ? "当前训练还没有足够的有效回答证据" : "还没有专项训练记录"}</span><Link href="/training">进入训练中心 <ArrowRight size={14} /></Link></div>}
-      </section>
-      <section className="ability-matrix-section">
-        <div className="ability-matrix-header"><div><h2>技术能力矩阵</h2><p>未考察能力不会被记为低分，点击来源可回到最近一次对应报告</p></div>{sortedSkills.length > 1 && <SegmentedControl label="能力排序" value={sortMode} onValueChange={setSortMode} options={SORT_OPTIONS} />}</div>
-        {sortedSkills.length ? <div className="matrix-grid">{sortedSkills.map((item) => <SkillRow item={item} key={item.skill} loading={retrainingKey === item.skill} disabled={Boolean(retrainingKey)} onRetrain={() => void startRetraining({ key: item.skill, focus: item.training_focus, sourceSessionId: item.source_session_id, improvement: { skill: item.skill, title: item.training_focus } })} />)}</div> : <div className="matrix-empty"><Target size={21} /><span>当前报告还没有可聚合的能力证据</span></div>}
-      </section>
-    </>}
-  </main>;
+  return (
+    <main className="content-container profile-page">
+      <PageIntro
+        title="能力画像"
+        actions={<Button asChild><Link href="/setup">开始新训练 <ArrowRight size={16} /></Link></Button>}
+      />
+      {error ? (
+        <section className="mt-8 flex min-h-40 items-center justify-center gap-3 border-y border-[var(--line)] text-sm text-[var(--muted)]" role="alert">
+          <Target size={20} /><span>{error}</span>
+        </section>
+      ) : profile && (
+        <>
+          <section className="mt-7 grid border-y border-[var(--line)] md:grid-cols-[minmax(0,1fr)_220px]">
+            <div className="py-6 pr-0 md:pr-8">
+              <span className="text-xs font-semibold text-[var(--accent-dark)]">下一步</span>
+              <h2 className="mt-2 text-xl font-semibold text-[var(--ink)]">
+                {prioritySkill ? `优先提升：${prioritySkill.skill}` : profile.next_training ? "优先完成一次针对性训练" : "先积累一份有效报告"}
+              </h2>
+              {(prioritySkill?.training_focus || profile.next_training) && <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--muted)]">
+                {prioritySkill?.training_focus ?? profile.next_training}
+              </p>}
+              <div className="mt-5 flex flex-wrap gap-2">
+                {prioritySkill && latestPoint ? (
+                  <Button
+                    type="button"
+                    disabled={Boolean(retrainingKey)}
+                    onClick={() => void startRetraining({
+                      key: prioritySkill.skill,
+                      focus: prioritySkill.training_focus,
+                      sourceSessionId: prioritySkill.source_session_id,
+                      improvement: { skill: prioritySkill.skill, title: prioritySkill.training_focus },
+                    })}
+                  >
+                    {retrainingKey === prioritySkill.skill ? <LoaderCircle className="spin" size={15} /> : <Target size={15} />}
+                    训练这个短板
+                  </Button>
+                ) : (
+                  <Button asChild><Link href="/setup">开始一次训练 <ArrowRight size={15} /></Link></Button>
+                )}
+                <Button asChild variant="secondary"><Link href="/history">查看训练记录</Link></Button>
+              </div>
+            </div>
+            <div className="grid grid-cols-3 border-t border-[var(--line)] py-5 md:grid-cols-1 md:border-l md:border-t-0 md:pl-7">
+              <Metric label="有效报告" value={profile.report_count} />
+              <Metric label="证据覆盖" value={profile.average_coverage === null ? "--" : `${profile.average_coverage}%`} />
+              <Metric label="证据稳定度" value={evidenceStability === null ? "--" : `${evidenceStability}%`} />
+            </div>
+          </section>
+
+          {actionError && <p className="mt-4 border-l-2 border-[var(--danger)] bg-[var(--danger-bg)] px-3 py-2 text-sm text-[var(--danger)]" role="alert">{actionError}</p>}
+
+          <section className="mt-9">
+            <div className="flex items-end justify-between gap-4">
+              <h2 className="text-lg font-semibold">能力概览</h2>
+              {sortedSkills.length > 1 && <SegmentedControl label="能力排序" value={sortMode} onValueChange={setSortMode} options={SORT_OPTIONS} />}
+            </div>
+            {sortedSkills.length ? (
+              <div className="mt-5 divide-y divide-[var(--line)] border-y border-[var(--line)]">
+                {sortedSkills.slice(0, 3).map((item) => <SkillSummary key={item.skill} item={item} />)}
+              </div>
+            ) : (
+              <div className="mt-5 py-10 text-center text-sm text-[var(--muted)]">当前还没有可聚合的技术能力证据</div>
+            )}
+          </section>
+
+          <details className="group mt-9 border-y border-[var(--line)] py-1">
+            <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-4 py-3 text-sm font-semibold">
+              训练趋势与场次记录
+              <ChevronDown className="transition-transform group-open:rotate-180" size={18} />
+            </summary>
+            <div className="pb-6">
+              <AbilityKline points={profile.kline.map((point) => ({ ...point, date: new Intl.DateTimeFormat("zh-CN", { month: "numeric", day: "numeric" }).format(new Date(point.date)) }))} />
+            </div>
+          </details>
+
+          <details className="group border-b border-[var(--line)] py-1">
+            <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-4 py-3 text-sm font-semibold">
+              完整能力证据 <span className="ml-auto text-xs font-normal text-[var(--muted)]">{sortedSkills.length} 项技术能力 · {profile.coaching.skills.length} 项专项能力</span>
+              <ChevronDown className="transition-transform group-open:rotate-180" size={18} />
+            </summary>
+            <div className="grid gap-8 pb-8">
+              <section>
+                <h3 className="text-sm font-semibold">专项训练</h3>
+                {profile.coaching.skills.length ? (
+                  <div className="mt-3 divide-y divide-[var(--line)] border-y border-[var(--line)]">
+                    {profile.coaching.skills.map((item) => (
+                      <div className="grid gap-3 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center" key={item.dimension}>
+                        <div><strong className="text-sm">{COACHING_DIMENSION_LABELS[item.dimension] ?? item.dimension}</strong><p className="mt-1 text-xs leading-5 text-[var(--muted)]">{item.latest_feedback}</p><small className="mt-1 block text-xs text-[var(--muted)]">{COACHING_MODE_LABELS[item.mode]} · {item.evidence_count} 条证据 · 可信度 {Math.round(item.confidence * 100)}%</small></div>
+                        <Button asChild variant="secondary" size="sm"><Link href={`/training/new?mode=${item.mode}&difficulty=${profile.coaching.next_difficulty}&focus=${encodeURIComponent(item.latest_feedback)}`}><Target size={13} />再练一次</Link></Button>
+                      </div>
+                    ))}
+                  </div>
+                ) : <p className="mt-3 text-sm text-[var(--muted)]">还没有专项训练记录</p>}
+              </section>
+              <section>
+                <h3 className="text-sm font-semibold">技术能力证据</h3>
+                <div className="mt-3 grid gap-3">
+                  {sortedSkills.map((item) => <SkillRow item={item} key={item.skill} loading={retrainingKey === item.skill} disabled={Boolean(retrainingKey)} onRetrain={() => void startRetraining({ key: item.skill, focus: item.training_focus, sourceSessionId: item.source_session_id, improvement: { skill: item.skill, title: item.training_focus } })} />)}
+                </div>
+              </section>
+            </div>
+          </details>
+        </>
+      )}
+    </main>
+  );
+}
+
+function Metric({ label, value }: { label: string; value: string | number }) {
+  return <div className="px-2 py-2 md:px-0"><span className="block text-xs text-[var(--muted)]">{label}</span><strong className="mt-1 block text-lg font-semibold text-[var(--ink)]">{value}</strong></div>;
+}
+
+function SkillSummary({ item }: { item: SkillItem }) {
+  const confidence = Math.round(item.confidence * 100);
+  return (
+    <article className="grid gap-3 py-4 sm:grid-cols-[160px_minmax(0,1fr)_90px] sm:items-center">
+      <div><strong className="text-sm">{item.skill}</strong><span className="mt-1 block text-xs text-[var(--muted)]">可信度 {confidence}%</span></div>
+      <div className="h-1.5 overflow-hidden rounded-full bg-[var(--bg-hover)]"><i className="block h-full bg-[var(--accent)]" style={{ width: `${Math.max(4, Math.min(100, item.score))}%` }} /></div>
+      <div className="text-left sm:text-right"><strong className="text-base">{item.score}</strong><span className="ml-1 text-xs text-[var(--muted)]">分</span></div>
+    </article>
+  );
 }
 
 function SkillRow({

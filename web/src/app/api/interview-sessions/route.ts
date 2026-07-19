@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       body: JSON.stringify(parsed.data),
       cache: "no-store",
-      signal: AbortSignal.timeout(120_000),
+      signal: AbortSignal.timeout(180_000),
     });
     return NextResponse.json(await readJsonResponse(response), { status: response.status });
   } catch (error) {

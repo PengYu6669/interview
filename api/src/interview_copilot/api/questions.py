@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from contextlib import suppress
 from typing import Annotated, Literal
 from uuid import UUID
@@ -47,8 +48,8 @@ from interview_copilot.infrastructure.rag_store import (
     PostgresRagSearchRepository,
     SqlAlchemyRagStore,
 )
+from interview_copilot.providers.ark_question_bank import ArkQuestionBankProvider
 from interview_copilot.providers.baidu_ocr import BaiduOCR, BaiduOCRConfig, BaiduOCRError
-from interview_copilot.providers.deepseek_question_bank import DeepSeekQuestionBankProvider
 from interview_copilot.providers.doubao_embedding import DoubaoEmbeddingProvider
 
 router = APIRouter(prefix="/v1/questions", tags=["questions"])
@@ -92,10 +93,10 @@ def workflow_service(
     )
     return QuestionWorkflowService(
         session,
-        deepseek=DeepSeekQuestionBankProvider(
-            api_key=settings.deepseek_api_key,
-            base_url=settings.deepseek_base_url,
-            model=settings.deepseek_model,
+        deepseek=ArkQuestionBankProvider(
+            api_key=settings.ark_api_key,
+            base_url=settings.ark_base_url,
+            model=settings.ark_model,
         ),
         rag_indexing=RagIndexingService(SqlAlchemyRagStore(session), embedding),
         rag_search=RagSearchService(PostgresRagSearchRepository(session), embedding),
@@ -111,10 +112,10 @@ def _workflow(session: Session) -> QuestionWorkflowService:
     )
     return QuestionWorkflowService(
         session,
-        deepseek=DeepSeekQuestionBankProvider(
-            api_key=settings.deepseek_api_key,
-            base_url=settings.deepseek_base_url,
-            model=settings.deepseek_model,
+        deepseek=ArkQuestionBankProvider(
+            api_key=settings.ark_api_key,
+            base_url=settings.ark_base_url,
+            model=settings.ark_model,
         ),
         rag_indexing=RagIndexingService(SqlAlchemyRagStore(session), embedding),
         rag_search=RagSearchService(PostgresRagSearchRepository(session), embedding),
@@ -221,7 +222,8 @@ async def import_questions(
     parsed = processed.document
     if not parsed.text.strip():
         raise HTTPException(status_code=422, detail="文档没有可提取的文字")
-    estimated_seconds = 240 if question_limit <= 30 else 360
+    # A 30-question import can require up to eight generation batches plus evidence repairs.
+    estimated_seconds = 600 if question_limit <= 30 else 900
     job, created = AiJobService(session).create(
         user_id=user.id,
         kind="question_import",
@@ -302,7 +304,13 @@ def _fail_job(job_id: UUID, error: str) -> None:
     with SessionFactory() as job_session:
         record = job_session.get(AiJobRecord, job_id)
         if record:
+            resource_id = record.resource_id
             AiJobService(job_session).fail(record, error)
+            if resource_id:
+                QuestionWorkflowService(job_session).recover_failed_document(
+                    document_id=resource_id,
+                    error=error,
+                )
 
 
 @router.get("/documents", response_model=list[QuestionDocumentSummary])
@@ -341,6 +349,7 @@ async def regenerate_question_document(
 
 # Hard wall-clock budget for one import/regenerate run (LLM + indexing).
 _QUESTION_JOB_TIMEOUT_SECONDS = 20 * 60
+logger = logging.getLogger(__name__)
 
 
 async def run_question_job_worker(stop: asyncio.Event) -> None:
@@ -385,6 +394,10 @@ async def run_question_job_worker(stop: asyncio.Event) -> None:
                     )
                 except (KeyError, TypeError, ValueError) as exc:
                     _fail_job(job_id, f"后台任务参数无效：{exc}")
+                # Process boundary: keep one failed provider call from killing the worker.
+                except Exception:
+                    logger.exception("question import worker failed", extra={"job_id": str(job_id)})
+                    _fail_job(job_id, "题目生成服务暂时不可用，请稍后重试")
                 continue
         with suppress(TimeoutError):
             await asyncio.wait_for(stop.wait(), timeout=1)

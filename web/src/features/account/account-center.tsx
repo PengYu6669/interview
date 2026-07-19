@@ -146,7 +146,7 @@ export function AccountCenter() {
   const canDelete = deletePassword.length > 0 && deleteConfirmation === summary.account.username;
 
   return <main className="content-container account-page">
-    <PageIntro eyebrow="账号与数据" title="管理你的训练空间" description="查看账号信息、导出训练数据，或永久删除当前账号及关联数据。" />
+    <PageIntro title="账号与数据" />
     <section className="account-identity"><div className="account-avatar"><UserRound size={27} /></div><div><span>当前账号</span><h2>{summary.account.username}</h2><p>{summary.account.email} · {joinedAt} 加入</p></div><button type="button" className="secondary-button" disabled={loggingOut} onClick={() => void logout()}>{loggingOut ? <LoaderCircle className="spin" size={15} /> : <LogOut size={15} />}{loggingOut ? "正在退出" : "退出登录"}</button></section>
     {actionError && <div className="account-action-message error" role="alert"><AlertTriangle size={15} /><span>{actionError}</span></div>}
     {exportMessage && <div className="account-action-message success" role="status"><Check size={15} /><span>{exportMessage}</span></div>}

@@ -19,12 +19,12 @@ export function SegmentedControl<T extends string>({
   label: string;
   className?: string;
 }) {
-  return <div className={cn("inline-flex max-w-full gap-1 overflow-x-auto rounded-lg border border-[var(--line)] bg-[var(--surface-muted)] p-1", className)} role="group" aria-label={label}>
+  return <div className={cn("inline-flex max-w-full gap-1 overflow-x-auto rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] p-1", className)} role="group" aria-label={label}>
     {options.map((option) => {
       const active = option.value === value;
-      return <button key={option.value} type="button" aria-pressed={active} onClick={() => onValueChange(option.value)} className={cn("inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border-0 px-3 text-xs font-semibold text-[var(--muted)] transition-colors hover:text-[var(--ink)]", active && "bg-[var(--surface)] text-[var(--ink)] shadow-sm")}>
+      return <button key={option.value} type="button" aria-pressed={active} onClick={() => onValueChange(option.value)} className={cn("inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md border-0 px-4 text-sm font-medium text-[var(--text-secondary)] transition-colors duration-150 hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]", active && "bg-[var(--accent)] !text-white hover:bg-[var(--accent-hover)] hover:!text-white")}>
         {option.label}
-        {option.count !== undefined && <span className={cn("grid min-w-4 place-items-center rounded bg-[#dfe5e3] px-1 text-[10px] tabular-nums", active && "bg-[var(--accent-soft)] text-[var(--accent-dark)]")}>{option.count}</span>}
+        {option.count !== undefined && <span className={cn("grid min-w-5 place-items-center rounded-full bg-[var(--bg-hover)] px-1 text-xs tabular-nums", active && "bg-white/15 !text-white")}>{option.count}</span>}
       </button>;
     })}
   </div>;

@@ -31,7 +31,7 @@ export const MODE_LEVELS: Record<InterviewMode, Pick<SetupState, "pressure" | "d
   stress: { pressure: 5, depth: 5, guidance: 1 },
 };
 
-export const DURATION_OPTIONS = [20, 30, 45, 60] as const;
+export const DURATION_OPTIONS = [20, 30, 45] as const;
 
 export interface SetupState {
   resumeName: string;

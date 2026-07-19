@@ -30,7 +30,7 @@ export async function POST(request: Request) {
       method: "POST",
       body: outgoing,
       cache: "no-store",
-      signal: AbortSignal.timeout(30_000),
+      signal: AbortSignal.timeout(120_000),
     });
     const payload: unknown = await response.json();
     return NextResponse.json(payload, { status: response.status });

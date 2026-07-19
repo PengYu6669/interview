@@ -12,10 +12,10 @@ export const DialogClose = DialogPrimitive.Close;
 
 export function DialogContent({ className, children, ...props }: ComponentProps<typeof DialogPrimitive.Content>) {
   return <DialogPrimitive.Portal>
-    <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-[#10181699] backdrop-blur-[2px] data-[state=open]:animate-in data-[state=closed]:animate-out" />
-    <DialogPrimitive.Content className={cn("fixed left-1/2 top-1/2 z-50 max-h-[calc(100dvh-32px)] w-[min(520px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-lg border border-[var(--line-strong)] bg-[var(--surface)] p-6 shadow-2xl", className)} {...props}>
+    <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-[rgb(26_26_26/55%)] data-[state=open]:animate-in data-[state=closed]:animate-out" />
+    <DialogPrimitive.Content className={cn("fixed left-1/2 top-1/2 z-50 max-h-[calc(100dvh-2rem)] w-[min(32.5rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-6 shadow-[0_4px_20px_rgb(0_0_0/6%)]", className)} {...props}>
       {children}
-      <DialogPrimitive.Close className="absolute right-4 top-4 grid size-8 place-items-center rounded-md text-[var(--muted)] hover:bg-[var(--soft)] hover:text-[var(--ink)]" aria-label="关闭"><X size={17} /></DialogPrimitive.Close>
+      <DialogPrimitive.Close className="absolute right-4 top-4 grid size-9 place-items-center rounded-lg text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]" aria-label="关闭"><X size={17} /></DialogPrimitive.Close>
     </DialogPrimitive.Content>
   </DialogPrimitive.Portal>;
 }

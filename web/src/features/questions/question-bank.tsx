@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { aiJobStatusSchema, remainingSeconds, type AiJobStatus } from "@/lib/ai-jobs";
+import { aiJobStatusSchema, type AiJobStatus } from "@/lib/ai-jobs";
 import { QUESTION_COACHING_SELECTION_KEY, QUESTION_INTERVIEW_SELECTION_KEY, questionDocumentSchema, questionSetDetailSchema, questionSetSummarySchema, questionSummarySchema, type QuestionDocumentSummary, type QuestionSetSummary, type QuestionSummary } from "@/lib/questions";
 
 type Scope = "public" | "mine" | "review";
@@ -265,14 +265,14 @@ export function QuestionBank() {
 
   return <main className="questions-page">
     <header className="questions-hero">
-      <div><span className="section-kicker">学习题库</span><h1>从“看过”到“能讲清楚”</h1><p>系统学习公共题目，也可以把自己的 Word、PDF 和笔记变成可编辑题库。</p></div>
+      <div><span className="section-kicker">学习题库</span><h1>从&ldquo;看过&rdquo;到&ldquo;能讲清楚&rdquo;</h1><p>系统学习公共题目，也可以把自己的 Word、PDF 和笔记变成可编辑题库。</p></div>
       <button className="question-import-button" type="button" onClick={() => setImportOpen(true)}><Upload size={17} />导入资料</button>
     </header>
 
     {importJob && <section className={`question-job-status ${importJob.status}`} aria-live="polite">
       <div className="question-job-copy">
         {importing ? <LoaderCircle className="spin" size={18} /> : importJob.status === "completed" ? <Check size={18} /> : <FileText size={18} />}
-        <span><strong>{importJob.status === "failed" ? "资料处理失败" : importJob.status === "completed" ? "个人题库已更新" : importJob.stage}</strong><small>{importJob.status === "queued" || importJob.status === "processing" ? `已等待 ${importElapsed} 秒 · 预计还需约 ${remainingSeconds(importJob, importElapsed)} 秒；题目会边生成边出现在下方列表，可提前开始学习` : importJob.error ?? importMessage}</small></span>
+        <span><strong>{importJob.status === "failed" ? "资料处理失败" : importJob.status === "completed" ? "个人题库已更新" : importJob.stage}</strong><small>{importJob.status === "queued" || importJob.status === "processing" ? `已等待 ${importElapsed} 秒 · 题目边生成边出现` : importJob.error ?? importMessage}</small></span>
       </div>
       <b>{importJob.progress}%</b>
       <i><span style={{ width: `${importJob.progress}%` }} /></i>
@@ -285,8 +285,10 @@ export function QuestionBank() {
         <button className={scope === "mine" ? "active" : ""} type="button" onClick={() => selectScope("mine")} role="tab" aria-selected={scope === "mine"}>我的题目</button>
         <button className={scope === "review" ? "active" : ""} type="button" onClick={() => selectScope("review")} role="tab" aria-selected={scope === "review"}>待复习</button>
       </div>
-      <label className="question-search"><Search size={16} /><span className="sr-only">搜索题目</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索题目或知识点" /></label>
-      <label className="question-difficulty"><span>难度</span><select value={difficulty} onChange={(event) => setDifficulty(event.target.value)}><option value="">全部</option><option value="基础">基础</option><option value="进阶">进阶</option><option value="高级">高级</option></select></label>
+      <div className="flex items-center gap-2">
+        <label className="question-search"><Search size={16} /><span className="sr-only">搜索题目</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索题目或知识点" /></label>
+        <select className="min-h-9 rounded-lg border border-[var(--line)] bg-white px-2.5 text-xs text-[var(--ink)]" value={difficulty} onChange={(event) => setDifficulty(event.target.value)}><option value="">全部难度</option><option value="基础">基础</option><option value="进阶">进阶</option><option value="高级">高级</option></select>
+      </div>
     </section>
 
     <div className="question-list-heading"><div><strong>{scope === "public" ? "精选学习题" : scope === "mine" ? activeSet ? "题目集内容" : "我的题目集" : "今天需要复习"}</strong><span>{loading ? "正在同步" : activeSet || scope !== "mine" ? `${visible.length} 道题目` : `${questionSets.length} 个题目集`}</span></div>{(scope !== "mine" || activeSet) && <div className="question-heading-actions">{selecting && activeSet && <button type="button" onClick={selectAllVisible}>全选当前集合</button>}<button className={selecting ? "active" : ""} type="button" onClick={() => { setSelecting((value) => !value); if (selecting) setSelected(new Map()); }}><ListPlus size={14} />{selecting ? "退出选择" : "选择题目"}</button></div>}</div>
@@ -304,7 +306,7 @@ export function QuestionBank() {
       <div className="question-card-action"><BookOpen size={18} /><span>开始学习</span><ArrowRight size={16} /></div>
     </Link></article>)}</section> : <div className="question-state"><BookOpen size={24} /><strong>{scope === "mine" ? "还没有自己的题目" : "没有匹配的题目"}</strong><p>{scope === "mine" ? "导入 Word、PDF、Markdown 或文本资料，AI 会生成可编辑的学习题。" : "换一个关键词或难度试试。"}</p>{scope === "mine" && <button type="button" onClick={() => setImportOpen(true)}>导入第一份资料</button>}</div>}
 
-    {selecting && <div className="question-selection-bar"><div><strong>已选 {selected.size} 道题</strong><span>{selected.size === 1 ? "可直接进行 STAR / PREP 结构化重答" : selected.size ? "可保存题目集或发起模拟面试" : "请选择题目"}</span></div><button className="secondary-action" type="button" disabled={!selected.size} onClick={() => void saveSelectionAsSet()}><ListPlus size={15} />保存题目集</button><button className="secondary-action" type="button" disabled={selected.size !== 1} onClick={startCoachingFromSelection}><MessageSquareText size={15} />专项训练</button><button type="button" disabled={!selected.size || selected.size > 20} onClick={startFromSelection}>准备模拟面试 <ArrowRight size={15} /></button></div>}
+    {selecting && <div className="question-selection-bar"><div><strong>已选 {selected.size} 道题</strong><span>{selected.size === 1 ? "可进行结构化重答" : selected.size ? "可保存题目集或发起模拟面试" : "请选择题目"}</span></div><button className="secondary-action" type="button" disabled={!selected.size} onClick={() => void saveSelectionAsSet()}><ListPlus size={15} />保存题目集</button><button className="secondary-action" type="button" disabled={selected.size !== 1} onClick={startCoachingFromSelection}><MessageSquareText size={15} />专项训练</button><button type="button" disabled={!selected.size || selected.size > 20} onClick={startFromSelection}>准备模拟面试 <ArrowRight size={15} /></button></div>}
 
     {importOpen && <div className="question-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setImportOpen(false); }}><section className="question-import-dialog" role="dialog" aria-modal="true" aria-labelledby="import-title"><button className="dialog-close" type="button" onClick={() => setImportOpen(false)} aria-label="关闭"><X size={18} /></button><div className="import-icon"><Sparkles size={22} /></div><h2 id="import-title">把资料变成学习题库</h2><p>系统会先识别知识点，再按上限生成题目。支持 PDF、Word（.docx）、Markdown 和 TXT，单个文件不超过 20MB。</p><label className="question-limit-control"><span><strong>题目上限</strong><em>{questionLimit} 题</em></span><input type="range" min="10" max="100" step="10" value={questionLimit} onChange={(event) => setQuestionLimit(Number(event.target.value))} /><small>默认 30 题；知识点较少时不会为凑数量注水。</small></label><button className="import-dropzone" type="button" disabled={importing} onClick={() => inputRef.current?.click()}>{importing ? <LoaderCircle className="spin" size={24} /> : <Upload size={24} />}<strong>{importing ? "正在上传资料" : "选择一个文件"}</strong><span>{importing ? "上传后会转入后台，可随时关闭弹窗" : "内容只用于生成你的个人题目"}</span></button><input ref={inputRef} hidden type="file" accept=".pdf,.docx,.md,.txt" onChange={importFile} />{importMessage && <div className={`import-feedback ${importing ? "working" : ""}`}>{importMessage}</div>}{importLoginRequired && <Link className="primary-cta full-width" href="/login?next=/questions">登录后导入资料</Link>}</section></div>}
   </main>;

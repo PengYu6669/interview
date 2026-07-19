@@ -92,18 +92,20 @@ class InterviewPlanningService:
             return self._to_domain(existing)
 
         if not self._generator:
-            raise InterviewPlanningError(
-                "尚未配置 DEEPSEEK_API_KEY，无法生成新的面试计划"
-            )
+            raise InterviewPlanningError("尚未配置面试计划模型，无法生成新的面试计划")
 
         selected_question_ids = self._session.scalars(
             select(TrainingDraftQuestionRecord.question_id).where(
                 TrainingDraftQuestionRecord.draft_id == draft.id
             )
         ).all()
-        selected_questions = self._session.scalars(
-            select(QuestionRecord).where(QuestionRecord.id.in_(selected_question_ids))
-        ).all() if selected_question_ids else []
+        selected_questions = (
+            self._session.scalars(
+                select(QuestionRecord).where(QuestionRecord.id.in_(selected_question_ids))
+            ).all()
+            if selected_question_ids
+            else []
+        )
         rag_context = await self._prepare_rag_context(
             user_id=user_id,
             draft=draft,
@@ -217,6 +219,8 @@ class InterviewPlanningService:
                 metadata={"draft_id": str(draft_id)},
             )
         )
+        # RAG data is independently reproducible; release its write locks before slow model I/O.
+        self._session.commit()
         job_text = "\n".join(
             item
             for item in [
@@ -239,6 +243,7 @@ class InterviewPlanningService:
                 metadata={"draft_id": str(draft_id)},
             )
         )
+        self._session.commit()
         focus = f"{target_role} {training_focus}".strip()
         candidate = await self._rag_search.search(
             user_id=user_id,

@@ -293,7 +293,7 @@ async def test_new_plan_requires_configured_generator() -> None:
         owner = _create_user(session, "owner")
         draft = _create_draft(session, owner.id, extraction={"schema_version": "test"})
 
-        with pytest.raises(InterviewPlanningError, match="DEEPSEEK_API_KEY"):
+        with pytest.raises(InterviewPlanningError, match="面试计划模型"):
             await InterviewPlanningService(session).create(
                 user_id=owner.id,
                 draft_id=draft.id,

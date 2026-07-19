@@ -12,20 +12,18 @@ import {
   Target,
 } from "lucide-react";
 import Link from "next/link";
-import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { ErrorBanner } from "@/components/error-banner";
 import { cn } from "@/lib/cn";
 import {
   COACHING_DIFFICULTY_LABELS,
   COACHING_DIMENSION_LABELS,
   COACHING_EXERCISE_LABELS,
   COACHING_MODE_LABELS,
-  CoachingSession,
-  coachingSessionSchema,
 } from "@/lib/coaching";
 
-import { useVoiceTranscription } from "./use-voice-transcription";
+import { useCoachingSession } from "./use-coaching-session";
 
 function formatTime(seconds: number) {
   const safe = Math.max(0, seconds);
@@ -35,157 +33,34 @@ function formatTime(seconds: number) {
 const pageClass =
   "mx-auto w-[min(1180px,calc(100%-48px))] pb-20 pt-14 max-[700px]:w-[calc(100%-28px)] max-[700px]:pt-8";
 
-const panelClass =
-  "rounded-lg border border-[var(--line)] bg-white text-[var(--ink)]";
+const panelClass = "rounded-xl border border-[var(--line)] bg-white text-[var(--ink)]";
 
 const errorClass =
   "border-l-[3px] border-[var(--danger)] bg-[#fff4f2] px-3 py-2.5 text-[13px] leading-relaxed text-[#973f37]";
 
 const dimensionChipClass =
-  "rounded border border-[#b9d8d4] bg-[var(--accent-soft)] px-2 py-1 text-xs text-[#176c63]";
+  "rounded border border-[var(--border-hover)] bg-[var(--accent-soft)] px-2 py-1 text-xs text-[var(--text-secondary)]";
 
 export function CoachingRoom({ sessionId }: { sessionId: string }) {
-  const [session, setSession] = useState<CoachingSession | null>(null);
-  const [answer, setAnswer] = useState("");
-  const [answerMode, setAnswerMode] = useState<"text" | "voice">("text");
-  const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState("");
-  const [remaining, setRemaining] = useState(0);
-  const [puzzleAssignments, setPuzzleAssignments] = useState<Record<string, string>>({});
-  const [puzzleComplete, setPuzzleComplete] = useState(false);
-  const [puzzleError, setPuzzleError] = useState("");
-  const attemptStartedAt = useRef(0);
-  const voice = useVoiceTranscription(sessionId, (text) => {
-    setAnswer(text);
-    setAnswerMode("voice");
-  });
-
-  const applySession = useCallback((data: CoachingSession) => {
-    setSession(data);
-    setRemaining(data.task.time_limit_seconds);
-    setPuzzleComplete(data.turns.length > 0 || !data.task.puzzle);
-    attemptStartedAt.current = Date.now();
-  }, []);
-
-  const fetchSession = useCallback(async () => {
-    const response = await fetch(`/api/coaching-sessions/${sessionId}`, { cache: "no-store" });
-    const payload: unknown = await response.json();
-    if (!response.ok) {
-      throw new Error(
-        typeof payload === "object" && payload && "detail" in payload
-          ? String(payload.detail)
-          : "训练读取失败",
-      );
-    }
-    const parsed = coachingSessionSchema.safeParse(payload);
-    if (!parsed.success) throw new Error("训练服务返回了无效数据");
-    return parsed.data;
-  }, [sessionId]);
-
-  useEffect(() => {
-    let mounted = true;
-    void fetchSession()
-      .then((data) => {
-        if (mounted) applySession(data);
-      })
-      .catch((cause: unknown) => {
-        if (mounted) setError(cause instanceof Error ? cause.message : "训练读取失败");
-      })
-      .finally(() => {
-        if (mounted) setLoading(false);
-      });
-    return () => {
-      mounted = false;
-    };
-  }, [applySession, fetchSession]);
-
-  useEffect(() => {
-    if (!session || session.status !== "active" || !puzzleComplete) return;
-    const timer = window.setInterval(() => setRemaining((value) => Math.max(0, value - 1)), 1_000);
-    return () => window.clearInterval(timer);
-  }, [puzzleComplete, session]);
-
-  async function reload() {
-    setLoading(true);
-    setError("");
-    try {
-      applySession(await fetchSession());
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "训练读取失败");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function start() {
-    setSubmitting(true);
-    setError("");
-    try {
-      const response = await fetch(`/api/coaching-sessions/${sessionId}/start`, { method: "POST" });
-      const payload: unknown = await response.json();
-      const parsed = coachingSessionSchema.safeParse(payload);
-      if (!response.ok || !parsed.success) throw new Error("训练暂时无法开始");
-      applySession(parsed.data);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "训练暂时无法开始");
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  async function submit(event: FormEvent) {
-    event.preventDefault();
-    if (!answer.trim()) return;
-    setSubmitting(true);
-    setError("");
-    try {
-      const elapsedSeconds = Math.min(
-        3_600,
-        Math.max(0, Math.round((Date.now() - attemptStartedAt.current) / 1_000)),
-      );
-      const response = await fetch(`/api/coaching-sessions/${sessionId}/answers`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          client_message_id: crypto.randomUUID(),
-          answer: answer.trim(),
-          answer_mode: answerMode,
-          elapsed_seconds: elapsedSeconds,
-        }),
-      });
-      const payload: unknown = await response.json();
-      if (!response.ok) {
-        throw new Error(
-          typeof payload === "object" && payload && "detail" in payload
-            ? String(payload.detail)
-            : "回答提交失败",
-        );
-      }
-      const parsed = coachingSessionSchema.safeParse(payload);
-      if (!parsed.success) throw new Error("训练服务返回了无效评价");
-      applySession(parsed.data);
-      setAnswer("");
-      setAnswerMode("text");
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "回答提交失败");
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  function checkPuzzle() {
-    const fragments = session?.task.puzzle?.fragments ?? [];
-    const incorrect = fragments.some((item) => puzzleAssignments[item.id] !== item.target_key);
-    if (incorrect) {
-      setPuzzleError("还有片段位置不准确，按表达顺序再检查一次。");
-      return;
-    }
-    setPuzzleError("");
-    setPuzzleComplete(true);
-    setRemaining(session?.task.time_limit_seconds ?? 0);
-    attemptStartedAt.current = Date.now();
-  }
+  const {
+    session,
+    answer,
+    setAnswer,
+    setAnswerMode,
+    loading,
+    submitting,
+    error,
+    remaining,
+    puzzleAssignments,
+    setPuzzleAssignments,
+    puzzleComplete,
+    puzzleError,
+    voice,
+    reload,
+    start,
+    submit,
+    checkPuzzle,
+  } = useCoachingSession(sessionId);
 
   if (loading) {
     return (
@@ -201,10 +76,7 @@ export function CoachingRoom({ sessionId }: { sessionId: string }) {
   if (!session) {
     return (
       <main className={pageClass}>
-        <p className={errorClass}>{error || "找不到这项训练"}</p>
-        <Button className="mt-4" variant="secondary" onClick={() => void reload()}>
-          重新读取
-        </Button>
+        <ErrorBanner message={error || "找不到这项训练"} onRetry={() => void reload()} />
       </main>
     );
   }
@@ -218,6 +90,7 @@ export function CoachingRoom({ sessionId }: { sessionId: string }) {
 
   return (
     <main className={pageClass}>
+      {/* Header */}
       <header className="flex items-end justify-between gap-7 pb-6 max-[620px]:flex-col max-[620px]:items-start">
         <div>
           <p className="eyebrow">{COACHING_MODE_LABELS[session.mode]}</p>
@@ -239,6 +112,7 @@ export function CoachingRoom({ sessionId }: { sessionId: string }) {
       </header>
 
       <div className="mt-6 grid grid-cols-[minmax(0,1fr)_310px] items-start gap-5 max-[900px]:grid-cols-1">
+        {/* Main panel */}
         <section className={cn(panelClass, "overflow-hidden")}>
           <div className="border-b border-[var(--line)] px-[22px] py-5">
             <div className="flex items-center justify-between gap-3">
@@ -265,7 +139,7 @@ export function CoachingRoom({ sessionId }: { sessionId: string }) {
             {facts.length > 0 && (
               <dl className="mt-3 grid grid-cols-2 gap-1.5 max-[620px]:grid-cols-1">
                 {facts.map((fact) => (
-                  <div key={fact.label} className="border-l-2 border-[#9fbdb8] bg-[#f5f8f7] px-2.5 py-1.5">
+                  <div key={fact.label} className="border-l-2 border-[var(--border-hover)] bg-[var(--bg-subtle)] px-2.5 py-1.5">
                     <dt className="text-xs text-[var(--muted)]">{fact.label}</dt>
                     <dd className="mt-0.5 text-xs font-semibold">{fact.value}</dd>
                   </div>
@@ -276,14 +150,15 @@ export function CoachingRoom({ sessionId }: { sessionId: string }) {
 
           {session.status === "planned" ? (
             <div className="border-t border-[var(--line)] px-[22px] py-5">
-              {error && <p className={cn(errorClass, "mb-3")}>{error}</p>}
-              <Button className="w-full" disabled={submitting} onClick={start}>
+              {error && <ErrorBanner message={error} />}
+              <Button className="mt-3 w-full" disabled={submitting} onClick={start}>
                 开始训练
                 <ArrowRight size={16} />
               </Button>
             </div>
           ) : (
             <>
+              {/* Puzzle */}
               {!puzzleComplete && session.task.puzzle && (
                 <section className="grid gap-3 p-6">
                   <span className="eyebrow">结构热身</span>
@@ -308,9 +183,7 @@ export function CoachingRoom({ sessionId }: { sessionId: string }) {
                         >
                           <option value="">选择位置</option>
                           {scaffold.map((step) => (
-                            <option value={step.key} key={step.key}>
-                              {step.label}
-                            </option>
+                            <option value={step.key} key={step.key}>{step.label}</option>
                           ))}
                         </select>
                       </label>
@@ -326,15 +199,13 @@ export function CoachingRoom({ sessionId }: { sessionId: string }) {
 
               {puzzleComplete && (
                 <div className="grid gap-[18px] p-6">
+                  {/* Scaffold */}
                   {showScaffold && (
-                    <section
-                      className="grid grid-cols-4 gap-1.5 max-[620px]:grid-cols-2"
-                      aria-label="回答结构"
-                    >
+                    <section className="grid grid-cols-4 gap-1.5 max-[620px]:grid-cols-2" aria-label="回答结构">
                       {scaffold.map((step, index) => (
                         <article
                           key={step.key}
-                          className="flex min-h-[72px] gap-2 rounded-md border border-[#bdd5d1] bg-[#f4f9f8] p-2.5"
+                          className="flex min-h-[72px] gap-2 rounded-md border border-[var(--border-hover)] bg-[var(--bg-subtle)] p-2.5"
                         >
                           <span className="grid size-[22px] shrink-0 place-items-center rounded-full bg-[var(--accent)] text-xs font-bold text-white">
                             {index + 1}
@@ -350,6 +221,7 @@ export function CoachingRoom({ sessionId }: { sessionId: string }) {
                     </section>
                   )}
 
+                  {/* Turns */}
                   {session.turns.map((turn) => {
                     const segments = turn.decision.evidence_segments ?? [];
                     const gaps = turn.decision.priority_gaps ?? [];
@@ -369,34 +241,21 @@ export function CoachingRoom({ sessionId }: { sessionId: string }) {
                         <p className="whitespace-pre-wrap text-sm leading-[1.75]">{turn.answer}</p>
                         {delivery && (
                           <div className="flex flex-wrap items-center gap-1.5">
-                            <span className="rounded bg-[#f1f4f3] px-1.5 py-1 text-xs text-[#53605e]">
-                              {delivery.character_count} 字
-                            </span>
+                            <span className="rounded bg-[var(--bg-subtle)] px-1.5 py-1 text-xs text-[var(--text-secondary)]">{delivery.character_count} 字</span>
                             {delivery.characters_per_minute !== null && (
-                              <span className="rounded bg-[#f1f4f3] px-1.5 py-1 text-xs text-[#53605e]">
-                                {delivery.characters_per_minute} 字/分钟
-                              </span>
+                              <span className="rounded bg-[var(--bg-subtle)] px-1.5 py-1 text-xs text-[var(--text-secondary)]">{delivery.characters_per_minute} 字/分钟</span>
                             )}
-                            <span className="rounded bg-[#f1f4f3] px-1.5 py-1 text-xs text-[#53605e]">
-                              填充词 {delivery.filler_total} 次
-                            </span>
+                            <span className="rounded bg-[var(--bg-subtle)] px-1.5 py-1 text-xs text-[var(--text-secondary)]">填充词 {delivery.filler_total} 次</span>
                             {delivery.source === "voice_transcript" && (
-                              <small className="w-full text-xs text-[var(--muted)]">
-                                基于转写估算，语音服务可能清理部分语气词
-                              </small>
+                              <small className="w-full text-xs text-[var(--muted)]">基于转写估算，语音服务可能清理部分语气词</small>
                             )}
                           </div>
                         )}
                         {segments.length > 0 && (
                           <div className="grid gap-1.5">
                             {segments.map((item) => (
-                              <blockquote
-                                key={`${item.key}-${item.evidence_quote}`}
-                                className="border-l-[3px] border-[#7aa9a2] bg-[#f6f9f8] px-2.5 py-2 text-xs leading-relaxed text-[#3f504d]"
-                              >
-                                <span className="mr-1.5 font-extrabold text-[var(--accent-dark)]">
-                                  {item.label}
-                                </span>
+                              <blockquote key={`${item.key}-${item.evidence_quote}`} className="border-l-[3px] border-[var(--border-hover)] bg-[var(--bg-subtle)] px-2.5 py-2 text-xs leading-relaxed text-[var(--text-secondary)]">
+                                <span className="mr-1.5 font-extrabold text-[var(--accent-dark)]">{item.label}</span>
                                 {item.evidence_quote}
                               </blockquote>
                             ))}
@@ -405,19 +264,12 @@ export function CoachingRoom({ sessionId }: { sessionId: string }) {
                         {gaps.length > 0 && (
                           <div className="grid gap-1.5">
                             {gaps.map((gap) => (
-                              <article
-                                key={gap.dimension}
-                                className="flex gap-2 border border-[#ebcda6] bg-[#fff9ef] p-2.5"
-                              >
+                              <article key={gap.dimension} className="flex gap-2 border border-[#ebcda6] bg-[#fff9ef] p-2.5">
                                 <Target className="mt-0.5 shrink-0 text-[#9a671d]" size={16} />
                                 <div>
-                                  <strong className="text-xs">
-                                    {COACHING_DIMENSION_LABELS[gap.dimension] ?? gap.dimension}
-                                  </strong>
+                                  <strong className="text-xs">{COACHING_DIMENSION_LABELS[gap.dimension] ?? gap.dimension}</strong>
                                   <p className="mt-0.5 text-xs leading-snug text-[#705838]">{gap.diagnosis}</p>
-                                  <small className="mt-0.5 block text-xs leading-snug text-[#705838]">
-                                    {gap.retry_prompt}
-                                  </small>
+                                  <small className="mt-0.5 block text-xs leading-snug text-[#705838]">{gap.retry_prompt}</small>
                                 </div>
                               </article>
                             ))}
@@ -427,8 +279,9 @@ export function CoachingRoom({ sessionId }: { sessionId: string }) {
                     );
                   })}
 
+                  {/* Current question */}
                   {session.current_question && (
-                    <div className="border-l-[3px] border-[var(--accent)] bg-[#f3f8f7] px-[18px] py-4">
+                    <div className="border-l-[3px] border-[var(--accent)] bg-[var(--bg-subtle)] px-[18px] py-4">
                       <span className="text-xs font-bold text-[var(--accent-dark)]">
                         {latest ? "原题重答" : "训练题目"}
                       </span>
@@ -436,46 +289,37 @@ export function CoachingRoom({ sessionId }: { sessionId: string }) {
                     </div>
                   )}
 
+                  {/* Comparison */}
                   {comparison && (
                     <section className="grid gap-3 border-t border-[var(--line)] pt-5">
                       <div className="flex items-center gap-1.5">
                         <Sparkles className="text-[var(--accent)]" size={18} />
                         <h2 className="text-base font-semibold">两次回答对比</h2>
                       </div>
-                      <p className="text-[13px] leading-relaxed text-[var(--muted)]">
-                        {comparison.overall_summary}
-                      </p>
+                      <p className="text-[13px] leading-relaxed text-[var(--muted)]">{comparison.overall_summary}</p>
                       <div className="grid gap-2">
                         {comparison.items.map((item) => (
                           <article
                             key={item.dimension}
                             className={cn(
-                              "border border-[var(--line)] border-l-[3px] border-l-[#9aa5a2] p-2.5",
+                              "border border-[var(--line)] border-l-[3px] border-l-[var(--border-hover)] p-2.5",
                               item.change === "improved" && "border-l-[var(--success)]",
                               item.change === "regressed" && "border-l-[var(--danger)]",
                             )}
                           >
                             <header className="flex justify-between gap-2.5">
-                              <strong className="text-xs">
-                                {COACHING_DIMENSION_LABELS[item.dimension] ?? item.dimension}
-                              </strong>
+                              <strong className="text-xs">{COACHING_DIMENSION_LABELS[item.dimension] ?? item.dimension}</strong>
                               <span className="text-xs text-[var(--muted)]">
-                                {item.change === "improved"
-                                  ? "有进步"
-                                  : item.change === "regressed"
-                                    ? "需回看"
-                                    : item.change === "stable"
-                                      ? "基本稳定"
-                                      : "证据不足"}
+                                {item.change === "improved" ? "有进步" : item.change === "regressed" ? "需回看" : item.change === "stable" ? "基本稳定" : "证据不足"}
                               </span>
                             </header>
                             <div className="mt-2 grid grid-cols-[1fr_auto_1fr] items-center gap-2 max-[620px]:grid-cols-1">
-                              <blockquote className="min-w-0 bg-[#f6f8f7] p-2 text-xs leading-snug">
+                              <blockquote className="min-w-0 bg-[var(--bg-subtle)] p-2 text-xs leading-snug">
                                 <small className="mb-0.5 block text-[var(--muted)]">第一次</small>
                                 {item.before_quote ?? "未找到有效证据"}
                               </blockquote>
                               <ArrowRight className="max-[620px]:rotate-90" size={15} />
-                              <blockquote className="min-w-0 bg-[#f6f8f7] p-2 text-xs leading-snug">
+                              <blockquote className="min-w-0 bg-[var(--bg-subtle)] p-2 text-xs leading-snug">
                                 <small className="mb-0.5 block text-[var(--muted)]">第二次</small>
                                 {item.after_quote ?? "未找到有效证据"}
                               </blockquote>
@@ -489,10 +333,11 @@ export function CoachingRoom({ sessionId }: { sessionId: string }) {
                 </div>
               )}
 
+              {/* Answer form */}
               {puzzleComplete && session.status === "active" && (
                 <form className="border-t border-[var(--line)] px-[22px] py-5" onSubmit={submit}>
                   <textarea
-                    className="min-h-[150px] w-full resize-y rounded-md border border-[var(--line)] bg-white p-3.5 text-sm leading-[1.7] text-[var(--ink)] outline-none focus:border-[var(--accent)] focus:shadow-[0_0_0_3px_rgb(13_148_136/10%)]"
+                    className="min-h-[150px] w-full resize-y rounded-lg border border-[var(--line)] bg-[var(--bg-canvas)] p-4 text-sm leading-[1.7] text-[var(--ink)] outline-none focus:border-[var(--accent)] focus:shadow-[0_0_0_1px_var(--accent-light)]"
                     value={answer}
                     maxLength={20_000}
                     onChange={(event) => {
@@ -506,7 +351,7 @@ export function CoachingRoom({ sessionId }: { sessionId: string }) {
                     }
                   />
                   {(error || voice.error) && (
-                    <p className={cn(errorClass, "mt-3")}>{error || voice.error}</p>
+                    <ErrorBanner message={error || voice.error} />
                   )}
                   <div className="mt-3 flex items-center justify-between gap-3 max-[620px]:flex-col max-[620px]:items-stretch">
                     <span className="text-xs text-[var(--muted)]">
@@ -558,6 +403,7 @@ export function CoachingRoom({ sessionId }: { sessionId: string }) {
           )}
         </section>
 
+        {/* Sidebar */}
         <aside className={cn(panelClass, "sticky top-[88px] p-5 max-[900px]:static")}>
           <h3 className="text-sm font-semibold">本次训练目标</h3>
           <div className="mt-3.5 flex flex-wrap gap-1.5">
@@ -567,9 +413,6 @@ export function CoachingRoom({ sessionId }: { sessionId: string }) {
               </span>
             ))}
           </div>
-          <p className="mt-2 text-xs leading-relaxed text-[var(--muted)]">
-            只根据你的原句证据评价。第一次找关键缺口，第二次验证是否真的改善。
-          </p>
           {session.status === "completed" && nextPractice && (
             <div className="mt-[18px] grid gap-2 border-t border-[var(--line)] pt-4">
               <CheckCircle2 className="text-[var(--success)]" size={18} />

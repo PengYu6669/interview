@@ -6,7 +6,7 @@ export function SectionHeading({
 }: {
   index: string;
   title: string;
-  description: string;
+  description?: string;
   titleId: string;
 }) {
   return (
@@ -14,7 +14,7 @@ export function SectionHeading({
       <span className="section-index">{index}</span>
       <div>
         <h2 id={titleId}>{title}</h2>
-        <p>{description}</p>
+        {description && <p>{description}</p>}
       </div>
     </div>
   );

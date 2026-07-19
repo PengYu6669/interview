@@ -4,16 +4,16 @@ import type { HTMLAttributes } from "react";
 import { cn } from "@/lib/cn";
 
 const badgeVariants = cva(
-  "inline-flex min-h-6 items-center gap-1 rounded-md border px-2 py-0.5 text-xs font-semibold",
+  "inline-flex min-h-6 items-center gap-1 rounded-full border px-3 py-1 text-xs font-medium",
   {
     variants: {
       tone: {
-        neutral: "border-[var(--line)] bg-[var(--surface-muted)] text-[var(--muted)]",
-        accent: "border-[#abd4cd] bg-[var(--accent-soft)] text-[var(--accent-dark)]",
-        success: "border-[#a9d4c2] bg-[#edf8f3] text-[var(--success)]",
-        warning: "border-[#e2c99a] bg-[#fff8e9] text-[var(--warning)]",
-        danger: "border-[#e3b7b2] bg-[#fff3f1] text-[var(--danger)]",
-        outline: "border-[var(--line-strong)] bg-transparent text-[var(--ink)]",
+        neutral: "border-[var(--border-default)] bg-[var(--bg-hover)] text-[var(--text-secondary)]",
+        accent: "border-[var(--accent-light)] bg-[var(--accent-light)] text-[var(--accent)]",
+        success: "border-[var(--success-bg)] bg-[var(--success-bg)] text-[var(--success)]",
+        warning: "border-[var(--warning-bg)] bg-[var(--warning-bg)] text-[var(--warning)]",
+        danger: "border-[var(--danger-border)] bg-[var(--danger-bg)] text-[var(--danger)]",
+        outline: "border-[var(--border-hover)] bg-transparent text-[var(--text-primary)]",
       },
     },
     defaultVariants: { tone: "neutral" },

@@ -49,9 +49,6 @@ export function SetupSummary({ state, readiness, parseStatus, onContinue, saving
           {saving ? "正在保存训练草稿" : parseStatus === "parsing" ? "正在解析简历" : canContinue ? "进入材料校正" : "完成材料后继续"}
           <ArrowRight size={17} />
         </Button>
-        <p className="mt-3 text-center text-[12px] leading-5 text-[var(--muted)]">
-          下一步可以检查技能提取结果，并调整本次考察重点
-        </p>
       </div>
       <div className="mt-4 flex items-start gap-3 border border-[var(--line)] bg-white p-4 text-xs leading-5 text-[var(--muted)]">
         <Mic2 size={17} className="mt-0.5 shrink-0 text-[var(--ink)]" />

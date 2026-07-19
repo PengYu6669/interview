@@ -905,3 +905,40 @@ def test_knowledge_point_dedupe_keeps_first_verified_candidate() -> None:
     result = DeepSeekQuestionBankProvider._dedupe_points([first, duplicate])
 
     assert [item.stable_key for item in result] == ["first-point"]
+
+
+@pytest.mark.asyncio
+async def test_knowledge_point_merge_stops_when_batches_do_not_converge(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    provider = DeepSeekQuestionBankProvider(
+        api_key="test-key",
+        base_url="https://example.invalid",
+        model="test-model",
+    )
+    candidates = [
+        KnowledgePointCandidate(
+            stable_key=f"candidate-point-{index}",
+            title=f"候选知识点 {index}",
+            knowledge_type="概念",
+            interview_claim=f"这是候选知识点 {index} 的核心判断。",
+            section_keys=["section-0"],
+        )
+        for index in range(25)
+    ]
+    calls = 0
+
+    async def fake_chat(prompt: str) -> str:
+        nonlocal calls
+        calls += 1
+        marker = "<候选知识点>"
+        payload = json.loads(prompt.split(marker, 1)[1].split("</候选知识点>", 1)[0])
+        return json.dumps({"knowledge_points": payload}, ensure_ascii=False)
+
+    monkeypatch.setattr(provider, "_chat", fake_chat)
+
+    result = await provider.merge_knowledge_points(candidates)
+
+    assert calls == 2
+    assert len(result.knowledge_points) == 25
+    assert "未继续收敛" in result.warnings[0]

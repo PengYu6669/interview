@@ -37,7 +37,6 @@ export function MaterialsSection({
       <SectionHeading
         index="01"
         title="训练材料"
-        description="上传简历，并提供你准备投递的岗位描述"
         titleId="materials-title"
       />
       <div className="grid gap-4 xl:grid-cols-2">

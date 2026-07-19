@@ -28,9 +28,7 @@ from interview_copilot.infrastructure.rag_store import (
     PostgresRagSearchRepository,
     SqlAlchemyRagStore,
 )
-from interview_copilot.providers.deepseek_interview_planner import (
-    DeepSeekInterviewPlanGenerator,
-)
+from interview_copilot.providers.ark_interview_planner import ArkInterviewPlanGenerator
 from interview_copilot.providers.deepseek_interview_turn import DeepSeekInterviewTurnDecider
 from interview_copilot.providers.doubao_embedding import DoubaoEmbeddingProvider
 from interview_copilot.speech.streaming import stream_xfyun_transcription
@@ -76,10 +74,10 @@ def planning_service(
     session: Annotated[Session, Depends(get_database_session)],
 ) -> InterviewPlanningService:
     try:
-        generator = DeepSeekInterviewPlanGenerator(
-            api_key=settings.deepseek_api_key,
-            base_url=settings.deepseek_base_url,
-            model=settings.deepseek_model,
+        generator = ArkInterviewPlanGenerator(
+            api_key=settings.ark_api_key,
+            base_url=settings.ark_base_url,
+            model=settings.ark_model,
         )
     except ValueError:
         generator = None

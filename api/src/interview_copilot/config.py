@@ -31,6 +31,10 @@ class Settings(BaseSettings):
     deepseek_anthropic_base_url: str = "https://api.deepseek.com/anthropic"
     deepseek_model: str = "deepseek-v4-flash"
 
+    ark_api_key: str = ""
+    ark_base_url: str = "https://ark.cn-beijing.volces.com/api/v3"
+    ark_model: str = "doubao-seed-2-1-pro-260628"
+
     doubao_embedding_api_key: str = ""
     doubao_embedding_endpoint: str = (
         "https://ark.cn-beijing.volces.com/api/v3/embeddings/multimodal"

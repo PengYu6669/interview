@@ -172,7 +172,11 @@ class QuestionWorkflowService:
         if progress:
             progress("正在抽取知识点地图", 38, document.id)
         candidate_points: list[KnowledgePointCandidate] = []
-        section_batches = [sections[offset : offset + 12] for offset in range(0, len(sections), 12)]
+        section_limit = getattr(provider, "knowledge_section_limit", 12)
+        section_batches = [
+            sections[offset : offset + section_limit]
+            for offset in range(0, len(sections), section_limit)
+        ]
         semaphore = asyncio.Semaphore(3)
 
         async def extract_batch(
@@ -181,8 +185,22 @@ class QuestionWorkflowService:
             async with semaphore:
                 return await provider.extract_knowledge_points(batch)
 
-        point_maps = await asyncio.gather(*(extract_batch(batch) for batch in section_batches))
-        for batch_number, point_map in enumerate(point_maps, 1):
+        point_results = await asyncio.gather(
+            *(extract_batch(batch) for batch in section_batches),
+            return_exceptions=True,
+        )
+        point_maps: list[KnowledgePointMap] = []
+        knowledge_warnings: list[str] = []
+        for batch_number, point_result in enumerate(point_results, 1):
+            if isinstance(point_result, BaseException):
+                if isinstance(point_result, asyncio.CancelledError):
+                    raise point_result
+                knowledge_warnings.append(
+                    f"第 {batch_number}/{len(section_batches)} 批知识点抽取失败，已保留其他批次"
+                )
+                continue
+            point_maps.append(point_result)
+            point_map = point_result
             candidate_points.extend(point_map.knowledge_points)
             if progress:
                 progress(
@@ -190,8 +208,10 @@ class QuestionWorkflowService:
                     30 + round(20 * batch_number / len(section_batches)),
                     document.id,
                 )
+        if not point_maps:
+            raise RuntimeError("资料的知识点批次均未成功，未产生可保存题目")
         merge_warning: str | None = None
-        if len(sections) > 12:
+        if len(point_maps) > 1:
             try:
                 merged_map = await provider.merge_knowledge_points(candidate_points)
             except RuntimeError as exc:
@@ -201,7 +221,7 @@ class QuestionWorkflowService:
                 )
                 merge_warning = merged_map.warnings[0]
         else:
-            merged_map = point_map
+            merged_map = point_maps[0]
         structural_points = self._structural_points(sections)
         merged_map = merged_map.model_copy(
             update={
@@ -232,7 +252,7 @@ class QuestionWorkflowService:
             desired_total,
             priority_keys={point.stable_key for point in structural_points},
         )
-        generated_warnings: list[str] = []
+        generated_warnings: list[str] = list(knowledge_warnings)
         if merge_warning:
             generated_warnings.append(merge_warning)
         point_batches = [
@@ -399,6 +419,27 @@ class QuestionWorkflowService:
             for item in documents
         ]
 
+    def recover_failed_document(self, *, document_id: UUID, error: str) -> None:
+        """Keep partial questions readable when a later provider/index call fails."""
+        document = self._session.get(QuestionDocumentRecord, document_id)
+        if not document:
+            return
+        question_count = int(
+            self._session.scalar(
+                select(func.count())
+                .select_from(QuestionRecord)
+                .where(QuestionRecord.source_document_id == document.id)
+            )
+            or 0
+        )
+        document.status = "ready" if question_count else "failed"
+        document.warnings = [*list(document.warnings), f"本次生成未完整结束：{error}"]
+        document.updated_at = datetime.now(UTC)
+        for question_set in document.question_sets:
+            question_set.status = "ready" if question_count else "failed"
+            question_set.updated_at = document.updated_at
+        self._session.commit()
+
     async def regenerate_document(
         self, *, user_id: UUID, document_id: UUID, additional_limit: int = 30
     ) -> QuestionImportResult:
@@ -474,14 +515,16 @@ class QuestionWorkflowService:
         provider = self._deepseek_provider()
         warnings = list(document.warnings)
         details: list[QuestionDetail] = []
-        existing_fingerprints = set(
-            self._session.scalars(
+        existing_fingerprints = {
+            fingerprint
+            for fingerprint in self._session.scalars(
                 select(QuestionRecord.content_fingerprint).where(
                     QuestionRecord.source_document_id == document.id,
                     QuestionRecord.content_fingerprint.is_not(None),
                 )
             )
-        )
+            if fingerprint is not None
+        }
         covered_sections: set[str] = set()
         saved_point_keys: set[str] = set()
         question_set.status = "generating"
