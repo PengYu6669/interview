@@ -26,11 +26,11 @@ export function EvidenceChain({
 }) {
   const confidenceLabel = confidence === null || confidence === undefined
     ? "未提供置信度"
-    : confidence >= 0.7 ? "证据较稳定" : confidence >= 0.4 ? "初步判断" : "样本不足";
+    : confidence >= 0.7 ? "表现较稳定" : confidence >= 0.4 ? "初步判断" : "样本不足";
   return <article className={`evidence-chain ${tone}`}>
-    <header><div><span>{meta ?? "证据化判断"}</span><h3>{conclusion}</h3></div>{controls}</header>
+    <header><div><span>{meta ?? "训练判断"}</span><h3>{conclusion}</h3></div>{controls}</header>
     <div className="evidence-chain-flow">
-      <section><Quote size={15} /><div><strong>{previousEvidence ? "前后回答证据" : "回答证据"}</strong>{previousEvidence && <blockquote><small>来源训练</small>“{previousEvidence}”</blockquote>}<blockquote>{previousEvidence && <small>本次训练</small>}{evidence ? `“${evidence}”` : "当前没有可逐字引用的回答证据"}</blockquote></div></section>
+      <section><Quote size={15} /><div><strong>{previousEvidence ? "前后回答" : "回答片段"}</strong>{previousEvidence && <blockquote><small>上次训练</small>“{previousEvidence}”</blockquote>}<blockquote>{previousEvidence && <small>本次训练</small>}{evidence ? `“${evidence}”` : "当前没有可展示的回答片段"}</blockquote></div></section>
       <ArrowDown className="evidence-chain-arrow" size={14} />
       <section><ShieldCheck size={15} /><div><strong>判断依据</strong><p>{basis}</p><small>{confidenceLabel}</small>{confidence !== null && confidence !== undefined && <ConfidenceBar value={confidence} compact />}</div></section>
       {action && <><ArrowDown className="evidence-chain-arrow" size={14} /><section><Target size={15} /><div><strong>下一次验证</strong><p>{action}</p></div></section></>}

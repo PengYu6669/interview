@@ -90,7 +90,7 @@ export function InterviewHistory() {
 
   if (loading) return <section className="review-empty-panel"><LoaderCircle className="spin" size={24} /><h2>正在读取训练记录</h2></section>;
   if (error) return <section className="review-empty-panel" role="alert"><History size={24} /><h2>训练记录读取失败</h2><p>{error}</p></section>;
-  if (!items.length && !coachingItems.length) return <section className="review-empty-panel"><div className="review-empty-icon"><History size={24} /></div><h2>还没有训练记录</h2><p>完成模拟面试或专项训练后，回答与评价证据会出现在这里。</p><Button asChild className="mt-5"><Link href="/training">开始第一次训练 <ArrowRight size={15} /></Link></Button></section>;
+  if (!items.length && !coachingItems.length) return <section className="review-empty-panel"><div className="review-empty-icon"><History size={24} /></div><h2>还没有训练记录</h2><p>完成模拟面试或专项训练后，复盘结果会出现在这里。</p><Button asChild className="mt-5"><Link href="/training">开始第一次训练 <ArrowRight size={15} /></Link></Button></section>;
 
   return <>
     <section className="history-summary-strip" aria-label="训练记录概览">

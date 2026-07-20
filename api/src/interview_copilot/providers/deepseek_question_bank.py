@@ -6,6 +6,8 @@ from typing import Literal
 import httpx
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
+from interview_copilot.domain.question_content import clean_question_markdown
+
 
 class QuestionGenerationSection(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -328,7 +330,11 @@ JSON Schema：{json.dumps(schema, ensure_ascii=False)}
     @staticmethod
     def _with_content(question: GeneratedQuestion) -> GeneratedQuestion:
         if question.content_markdown.strip():
-            return question
+            return question.model_copy(
+                update={
+                    "content_markdown": clean_question_markdown(question.content_markdown)
+                }
+            )
         outline = "\n".join(
             f"{index}. {item}" for index, item in enumerate(question.answer_outline, 1)
         )
@@ -338,10 +344,10 @@ JSON Schema：{json.dumps(schema, ensure_ascii=False)}
             f"{index}. {item}" for index, item in enumerate(question.answer_outline[1:], 1)
         )
         content = (
-            f"## {question.title}\n\n{question.prompt}\n\n"
-            f"### 一句话回答\n\n{core}\n\n"
-            f"### 展开表达\n\n{expansion or outline}\n\n"
-            f"### 边界与取舍\n\n{question.intent}\n\n"
+            f"## 题目\n\n{question.prompt}\n\n"
+            f"## 回答要点\n\n### 核心结论\n\n{core}\n\n"
+            f"### 展开思路\n\n{expansion or outline}\n\n"
+            f"## 面试提醒\n\n### 需要讲清楚\n\n{question.intent}\n\n"
             f"### 容易被追问\n\n{mistakes}"
         )
         return question.model_copy(update={"content_markdown": content})

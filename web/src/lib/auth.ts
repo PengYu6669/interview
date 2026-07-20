@@ -7,6 +7,7 @@ export const authUserSchema: z.ZodType<AuthUser> = z.object({
   id: z.string().uuid(),
   username: z.string().min(1),
   email: z.string().min(1),
+  role: z.enum(["user", "admin"]),
   created_at: z.string().min(1),
 });
 

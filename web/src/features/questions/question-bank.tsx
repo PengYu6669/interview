@@ -109,12 +109,22 @@ export function QuestionBank() {
       const payload: unknown = await response.json();
       if (!payload || !active) return;
       const job = aiJobStatusSchema.parse(payload);
+      if (!["queued", "processing"].includes(job.status)) return;
       setImportJob(job);
       setImportElapsed(Math.max(0, Math.round((new Date().getTime() - new Date(job.created_at).getTime()) / 1000)));
       setImporting(job.status === "queued" || job.status === "processing");
     }).catch(() => undefined);
     return () => { active = false; };
   }, []);
+
+  useEffect(() => {
+    if (!importJob || ["queued", "processing"].includes(importJob.status)) return;
+    const delay = importJob.status === "completed" ? 5_000 : 10_000;
+    const timer = window.setTimeout(() => {
+      setImportJob((current) => current?.id === importJob.id ? null : current);
+    }, delay);
+    return () => window.clearTimeout(timer);
+  }, [importJob]);
 
   useEffect(() => {
     if (!importJob || !["queued", "processing"].includes(importJob.status)) return;
@@ -265,8 +275,8 @@ export function QuestionBank() {
 
   return <main className="questions-page">
     <header className="questions-hero">
-      <div><span className="section-kicker">学习题库</span><h1>从&ldquo;看过&rdquo;到&ldquo;能讲清楚&rdquo;</h1><p>系统学习公共题目，也可以把自己的 Word、PDF 和笔记变成可编辑题库。</p></div>
-      <button className="question-import-button" type="button" onClick={() => setImportOpen(true)}><Upload size={17} />导入资料</button>
+      <div><span className="section-kicker">学习题库</span><h1>从&ldquo;看过&rdquo;到&ldquo;能讲清楚&rdquo;</h1><p>按岗位和知识点练习经过审核的面试题。</p></div>
+      {scope === "mine" && <button className="question-import-button" type="button" onClick={() => setImportOpen(true)}><Upload size={17} />导入私有资料</button>}
     </header>
 
     {importJob && <section className={`question-job-status ${importJob.status}`} aria-live="polite">
@@ -277,6 +287,7 @@ export function QuestionBank() {
       <b>{importJob.progress}%</b>
       <i><span style={{ width: `${importJob.progress}%` }} /></i>
       {importJob.status === "failed" && <button type="button" onClick={() => setImportOpen(true)}>重新导入</button>}
+      {!importing && <button className="question-job-dismiss" type="button" aria-label="关闭资料处理状态" onClick={() => setImportJob(null)}><X size={15} /></button>}
     </section>}
 
     <section className="question-command-bar" aria-label="题库筛选">
@@ -308,6 +319,6 @@ export function QuestionBank() {
 
     {selecting && <div className="question-selection-bar"><div><strong>已选 {selected.size} 道题</strong><span>{selected.size === 1 ? "可进行结构化重答" : selected.size ? "可保存题目集或发起模拟面试" : "请选择题目"}</span></div><button className="secondary-action" type="button" disabled={!selected.size} onClick={() => void saveSelectionAsSet()}><ListPlus size={15} />保存题目集</button><button className="secondary-action" type="button" disabled={selected.size !== 1} onClick={startCoachingFromSelection}><MessageSquareText size={15} />专项训练</button><button type="button" disabled={!selected.size || selected.size > 20} onClick={startFromSelection}>准备模拟面试 <ArrowRight size={15} /></button></div>}
 
-    {importOpen && <div className="question-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setImportOpen(false); }}><section className="question-import-dialog" role="dialog" aria-modal="true" aria-labelledby="import-title"><button className="dialog-close" type="button" onClick={() => setImportOpen(false)} aria-label="关闭"><X size={18} /></button><div className="import-icon"><Sparkles size={22} /></div><h2 id="import-title">把资料变成学习题库</h2><p>系统会先识别知识点，再按上限生成题目。支持 PDF、Word（.docx）、Markdown 和 TXT，单个文件不超过 20MB。</p><label className="question-limit-control"><span><strong>题目上限</strong><em>{questionLimit} 题</em></span><input type="range" min="10" max="100" step="10" value={questionLimit} onChange={(event) => setQuestionLimit(Number(event.target.value))} /><small>默认 30 题；知识点较少时不会为凑数量注水。</small></label><button className="import-dropzone" type="button" disabled={importing} onClick={() => inputRef.current?.click()}>{importing ? <LoaderCircle className="spin" size={24} /> : <Upload size={24} />}<strong>{importing ? "正在上传资料" : "选择一个文件"}</strong><span>{importing ? "上传后会转入后台，可随时关闭弹窗" : "内容只用于生成你的个人题目"}</span></button><input ref={inputRef} hidden type="file" accept=".pdf,.docx,.md,.txt" onChange={importFile} />{importMessage && <div className={`import-feedback ${importing ? "working" : ""}`}>{importMessage}</div>}{importLoginRequired && <Link className="primary-cta full-width" href="/login?next=/questions">登录后导入资料</Link>}</section></div>}
+    {importOpen && <div className="question-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setImportOpen(false); }}><section className="question-import-dialog" role="dialog" aria-modal="true" aria-labelledby="import-title"><button className="dialog-close" type="button" onClick={() => setImportOpen(false)} aria-label="关闭"><X size={18} /></button><div className="import-icon"><Sparkles size={22} /></div><h2 id="import-title">把资料变成学习题库</h2><p>系统会先识别知识点，再生成指定数量的题目。支持 PDF、Word（.docx）、Markdown 和 TXT，单个文件不超过 20MB。</p><label className="question-limit-control"><span><strong>目标题数</strong><em>{questionLimit} 题</em></span><input type="range" min="10" max="100" step="10" value={questionLimit} onChange={(event) => setQuestionLimit(Number(event.target.value))} /><small>默认 30 题；未达到目标题数时任务会明确失败。</small></label><button className="import-dropzone" type="button" disabled={importing} onClick={() => inputRef.current?.click()}>{importing ? <LoaderCircle className="spin" size={24} /> : <Upload size={24} />}<strong>{importing ? "正在上传资料" : "选择一个文件"}</strong><span>{importing ? "上传后会转入后台，可随时关闭弹窗" : "内容只用于生成你的个人题目"}</span></button><input ref={inputRef} hidden type="file" accept=".pdf,.docx,.md,.txt" onChange={importFile} />{importMessage && <div className={`import-feedback ${importing ? "working" : ""}`}>{importMessage}</div>}{importLoginRequired && <Link className="primary-cta full-width" href="/login?next=/questions">登录后导入资料</Link>}</section></div>}
   </main>;
 }

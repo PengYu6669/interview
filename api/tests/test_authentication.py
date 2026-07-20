@@ -2,10 +2,11 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 from fastapi import HTTPException
+from pydantic import ValidationError
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
-from interview_copilot.api.auth import LoginRequest
+from interview_copilot.api.auth import LoginRequest, require_admin
 from interview_copilot.api.auth import login as login_endpoint
 from interview_copilot.application.authentication import (
     AuthenticationService,
@@ -14,7 +15,8 @@ from interview_copilot.application.authentication import (
     InvalidSessionError,
     LoginRateLimitExceeded,
 )
-from interview_copilot.infrastructure.database import AuthSessionRecord, Base
+from interview_copilot.domain.auth import UserProfile
+from interview_copilot.infrastructure.database import AuthSessionRecord, Base, UserRecord
 
 
 @pytest.fixture
@@ -35,6 +37,7 @@ def test_register_login_authenticate_and_logout(service: AuthenticationService) 
 
     assert registered.user.username == "测试用户"
     assert registered.user.email == "user@example.com"
+    assert registered.user.role == "user"
     assert service.authenticate(registered.session_token).id == registered.user.id
 
     logged_in = service.login(identifier="USER@EXAMPLE.COM", password="123456")
@@ -43,6 +46,36 @@ def test_register_login_authenticate_and_logout(service: AuthenticationService) 
     service.logout(logged_in.session_token)
     with pytest.raises(InvalidSessionError):
         service.authenticate(logged_in.session_token)
+
+
+def test_admin_authorization_requires_database_role(
+    service: AuthenticationService, database: Session
+) -> None:
+    registered = service.register(
+        username="admin_user", email="admin@example.com", password="123456"
+    )
+    with pytest.raises(HTTPException) as forbidden:
+        require_admin(registered.user)
+    assert forbidden.value.status_code == 403
+
+    user = database.get(UserRecord, registered.user.id)
+    assert user is not None
+    user.role = "admin"
+    database.commit()
+    authenticated = service.authenticate(registered.session_token)
+    assert require_admin(authenticated).role == "admin"
+
+
+def test_user_profile_rejects_unknown_role() -> None:
+    with pytest.raises(ValidationError) as invalid:
+        UserProfile(
+            id="00000000-0000-0000-0000-000000000001",
+            username="invalid-role",
+            email="invalid@example.com",
+            role="editor",
+            created_at=datetime.now(UTC),
+        )
+    assert invalid.value.errors()[0]["loc"] == ("role",)
 
 
 def test_rejects_duplicate_account(service: AuthenticationService) -> None:

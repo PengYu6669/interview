@@ -26,11 +26,15 @@ from interview_copilot.domain.retrieval import (
 )
 from interview_copilot.infrastructure.career import WeeklyPlanItemRecord, WeeklyPlanRecord
 from interview_copilot.infrastructure.database import Base, UserRecord
-from interview_copilot.infrastructure.drafts import TrainingDraftRecord
+from interview_copilot.infrastructure.drafts import (
+    TrainingDraftQuestionRecord,
+    TrainingDraftRecord,
+)
 from interview_copilot.infrastructure.interviews import (
     InterviewSessionRecord,  # noqa: F401
     InterviewTurnRecord,
 )
+from interview_copilot.infrastructure.questions import QuestionRecord
 
 
 class FakeGenerator:
@@ -197,6 +201,26 @@ async def test_creates_idempotent_owned_interview_plan() -> None:
         draft.target_level = "senior"
         draft.interview_round = "second"
         draft.interview_type = "system_design"
+        selected_question = QuestionRecord(
+            slug="selected-system-design",
+            title="设计限流服务",
+            prompt="请设计一个分布式限流服务。",
+            difficulty="进阶",
+            question_type="系统设计",
+            intent="考察容量规划和一致性取舍",
+            answer_outline=["需求澄清", "方案取舍"],
+            common_mistakes=["忽略容量估算"],
+            published=True,
+            created_at=datetime.now(UTC),
+        )
+        session.add(selected_question)
+        session.flush()
+        session.add(
+            TrainingDraftQuestionRecord(
+                draft_id=draft.id,
+                question_id=selected_question.id,
+            )
+        )
         session.commit()
         generator = FakeGenerator()
         rag_search = FakeRagSearch()
@@ -215,6 +239,17 @@ async def test_creates_idempotent_owned_interview_plan() -> None:
         assert generator.last_request["target_level"] == "senior"
         assert generator.last_request["interview_round"] == "second"
         assert generator.last_request["interview_type"] == "system_design"
+        assert generator.last_request["resume_text"] == "负责 Python 服务开发。"
+        assert generator.last_request["jd"] == "需要系统设计经验。"
+        assert generator.last_request["question_bank_context"] == [
+            {
+                "title": "设计限流服务",
+                "prompt": "请设计一个分布式限流服务。",
+                "intent": "考察容量规划和一致性取舍",
+                "answer_outline": ["需求澄清", "方案取舍"],
+                "common_mistakes": ["忽略容量估算"],
+            }
+        ]
         assert set(generator.last_request["rag_context"]) == {  # type: ignore[arg-type]
             "candidate",
             "job",

@@ -7,11 +7,13 @@ from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import Session
 
 from interview_copilot.application.question_workflows import QuestionWorkflowService
-from interview_copilot.application.questions import QuestionBankService
+from interview_copilot.application.questions import QuestionBankAdminService, QuestionBankService
 from interview_copilot.domain.retrieval import RetrievedEvidence
 from interview_copilot.infrastructure.database import Base, UserRecord
 from interview_copilot.infrastructure.questions import (
     QuestionConversationRecord,
+    QuestionDocumentRecord,
+    QuestionEvidenceRecord,
     QuestionMessageRecord,
     QuestionRecord,
     TopicRecord,
@@ -134,6 +136,249 @@ def test_private_question_is_only_visible_and_editable_by_owner() -> None:
                 pass
             else:
                 raise AssertionError("非所有者不应读取个人题目")
+
+
+@pytest.mark.asyncio
+async def test_admin_can_edit_shared_candidates_and_publication_updates_visibility() -> None:
+    class FakeIndexer:
+        indexed: list[UUID] = []
+
+        async def index_question(self, question: QuestionRecord) -> None:
+            self.indexed.append(question.id)
+
+    class FakeVisibilityStore:
+        changes: list[tuple[UUID, UUID | None, str]] = []
+        deleted: list[UUID] = []
+
+        def set_question_visibility(
+            self, *, question_id: UUID, owner_user_id: UUID | None, visibility: str
+        ) -> None:
+            self.changes.append((question_id, owner_user_id, visibility))
+
+        def delete_question(self, *, question_id: UUID) -> None:
+            self.deleted.append(question_id)
+
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    with Session(engine, expire_on_commit=False) as session:
+        admin = UserRecord(
+            username="admin",
+            email="admin@example.com",
+            password_hash="hash",
+            role="admin",
+            created_at=datetime.now(UTC),
+        )
+        other_admin = UserRecord(
+            username="other_admin",
+            email="other-admin@example.com",
+            password_hash="hash",
+            role="admin",
+            created_at=datetime.now(UTC),
+        )
+        user = UserRecord(
+            username="user",
+            email="user@example.com",
+            password_hash="hash",
+            created_at=datetime.now(UTC),
+        )
+        session.add_all([admin, other_admin, user])
+        session.flush()
+        document = QuestionDocumentRecord(
+            owner_user_id=other_admin.id,
+            filename="async.md",
+            media_type="text/markdown",
+            normalized_text="事件循环负责调度异步任务。",
+            content_hash="a" * 64,
+            version=1,
+            status="ready",
+            model="test-model",
+            prompt_version="test-v1",
+            created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
+        )
+        session.add(document)
+        session.flush()
+        topic = TopicRecord(slug="async", name="异步")
+        candidate = QuestionRecord(
+            slug="admin-candidate",
+            title="候选题",
+            prompt="说明事件循环",
+            difficulty="基础",
+            question_type="原理",
+            intent="检查异步基础",
+            answer_outline=["事件循环"],
+            common_mistakes=["混同多线程"],
+            published=False,
+            owner_user_id=other_admin.id,
+            source_document_id=document.id,
+            source_document_name=document.filename,
+            created_at=datetime.now(UTC),
+            topics=[topic],
+        )
+        user_question = QuestionRecord(
+            slug="user-private",
+            title="普通用户题目",
+            prompt="不可管理",
+            difficulty="基础",
+            question_type="原理",
+            intent="隔离",
+            answer_outline=[],
+            common_mistakes=[],
+            published=False,
+            owner_user_id=user.id,
+            created_at=datetime.now(UTC),
+        )
+        public_question = QuestionRecord(
+            slug="public-seed",
+            title="公共题",
+            prompt="解释事务隔离",
+            difficulty="进阶",
+            question_type="原理",
+            intent="考察数据库基础",
+            answer_outline=["说明隔离级别"],
+            common_mistakes=["忽略并发现象"],
+            published=True,
+            created_at=datetime.now(UTC),
+            topics=[TopicRecord(slug="database", name="数据库")],
+        )
+        session.add_all([candidate, user_question, public_question])
+        session.commit()
+
+        indexer = FakeIndexer()
+        visibility = FakeVisibilityStore()
+        service = QuestionBankAdminService(
+            session,
+            indexer=indexer,
+            visibility_store=visibility,
+        )
+        assert {item.id for item in service.list_managed()} == {
+            candidate.id,
+            public_question.id,
+        }
+        assert service.get_managed(question_id=candidate.id).owner_user_id == other_admin.id
+        with pytest.raises(LookupError, match="找不到可管理的题目"):
+            service.get_managed(question_id=user_question.id)
+
+        updated = await service.update_managed(
+            question_id=candidate.id,
+            title="事件循环审核题",
+            prompt="请说明事件循环如何调度任务",
+            difficulty="进阶",
+            question_type="原理",
+            framework="technical",
+            intent="考察异步调度机制",
+            answer_outline=["说明调度队列", "解释 I/O 等待"],
+            common_mistakes=["混同线程调度"],
+            topic_names=["异步", "Python"],
+            content_markdown="# 事件循环",
+        )
+        assert updated.title == "事件循环审核题"
+        assert {item.name for item in updated.topics} == {"异步", "Python"}
+        assert indexer.indexed == [candidate.id]
+
+        created = await service.create_managed(
+            admin_user_id=admin.id,
+            title="手动创建题目",
+            prompt="请解释缓存击穿",
+            difficulty="进阶",
+            question_type="场景",
+            framework="technical",
+            intent="考察缓存治理",
+            answer_outline=["说明问题", "给出方案"],
+            common_mistakes=["只加锁不考虑超时"],
+            topic_names=["缓存"],
+            content_markdown="```markdown\n## **回答要点**\n\n先定义缓存击穿。\n```",
+        )
+        assert created.published is False
+        assert created.content_markdown == "## 回答要点\n\n先定义缓存击穿。"
+        assert created.id in {item.id for item in service.list_managed()}
+        service.delete_managed(question_id=created.id)
+        assert created.id not in {item.id for item in service.list_managed()}
+        assert visibility.deleted == [created.id]
+
+        with pytest.raises(ValueError, match="缺少原文证据"):
+            service.set_publication(
+                admin_user_id=admin.id, question_id=candidate.id, published=True
+            )
+        session.add(
+            QuestionEvidenceRecord(
+                question_id=candidate.id,
+                document_id=document.id,
+                section_key="section-1",
+                heading_path=["异步"],
+                quote="事件循环负责调度异步任务。",
+            )
+        )
+        session.commit()
+        published = service.set_publication(
+            admin_user_id=admin.id, question_id=candidate.id, published=True
+        )
+        assert published.published is True
+        assert visibility.changes[-1] == (candidate.id, other_admin.id, "public")
+        assert service.set_publication(
+            admin_user_id=admin.id, question_id=candidate.id, published=True
+        ).published is True
+
+        with pytest.raises(ValueError, match="答案结构"):
+            await service.update_managed(
+                question_id=candidate.id,
+                title="事件循环审核题",
+                prompt="请说明事件循环如何调度任务",
+                difficulty="进阶",
+                question_type="原理",
+                framework="technical",
+                intent="考察异步调度机制",
+                answer_outline=[],
+                common_mistakes=["混同线程调度"],
+                topic_names=["异步"],
+                content_markdown="# 事件循环",
+            )
+        session.rollback()
+        session.refresh(candidate)
+        assert candidate.answer_outline == ["说明调度队列", "解释 I/O 等待"]
+
+        withdrawn = service.set_publication(
+            admin_user_id=admin.id, question_id=public_question.id, published=False
+        )
+        assert withdrawn.owner_user_id == admin.id
+        assert visibility.changes[-1] == (public_question.id, admin.id, "private")
+
+
+def test_admin_publication_rejects_incomplete_question_structure() -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    with Session(engine, expire_on_commit=False) as session:
+        admin = UserRecord(
+            username="admin",
+            email="admin@example.com",
+            password_hash="hash",
+            role="admin",
+            created_at=datetime.now(UTC),
+        )
+        session.add(admin)
+        session.flush()
+        question = QuestionRecord(
+            slug="incomplete-candidate",
+            title="待补充题目",
+            prompt="请回答",
+            difficulty="基础",
+            question_type="原理",
+            intent="",
+            answer_outline=[],
+            common_mistakes=[],
+            published=False,
+            owner_user_id=admin.id,
+            created_at=datetime.now(UTC),
+        )
+        session.add(question)
+        session.commit()
+
+        with pytest.raises(ValueError, match="考察意图.*答案结构.*常见错误.*知识点"):
+            QuestionBankAdminService(session).set_publication(
+                admin_user_id=admin.id,
+                question_id=question.id,
+                published=True,
+            )
 
 
 def test_question_state_updates_spaced_review_schedule() -> None:
@@ -494,7 +739,7 @@ async def test_generation_repairs_non_exact_evidence_once(
 
     assert result.questions[0].evidence[0].quote == "使用令牌桶限制突发流量"
     assert "使用令牌桶限制突发流量" not in result.questions[0].content_markdown
-    assert "### 一句话回答" in result.questions[0].content_markdown
+    assert "### 核心结论" in result.questions[0].content_markdown
     assert "旧的错误引用" not in result.questions[0].content_markdown
 
 
@@ -541,7 +786,7 @@ def test_generated_question_builds_learning_content_when_model_omits_it() -> Non
 
     normalized = DeepSeekQuestionBankProvider._with_content(question)
 
-    assert "### 一句话回答" in normalized.content_markdown
+    assert "### 核心结论" in normalized.content_markdown
     assert "使用令牌桶限制流量" not in normalized.content_markdown
 
 
@@ -568,6 +813,7 @@ async def test_imported_document_deduplicates_versions_and_preserves_coverage() 
         class FakeProvider:
             model_name = "fake-question-model"
             prompt_version = "question-test-v1"
+            calls = 0
 
             async def extract_knowledge_points(
                 self, sections: list[QuestionGenerationSection]
@@ -592,13 +838,14 @@ async def test_imported_document_deduplicates_versions_and_preserves_coverage() 
                 desired_questions: int,
                 knowledge_points: list[KnowledgePointCandidate] | None = None,
             ) -> GeneratedQuestions:
-                del desired_questions
+                self.calls += 1
+                points = knowledge_points or []
                 return GeneratedQuestions(
                     questions=[
                         GeneratedQuestion(
-                            title=f"片段 {section.key}",
-                            knowledge_point_key=(knowledge_points or [])[0].stable_key,
-                            prompt="这段经历如何体现个人贡献？",
+                            title=f"项目复盘题 {self.calls}-{index + 1}",
+                            knowledge_point_key=points[index % len(points)].stable_key,
+                            prompt=f"这段经历如何体现个人贡献？角度 {self.calls}-{index + 1}",
                             difficulty="进阶",
                             question_type="项目",
                             framework="star",
@@ -608,13 +855,13 @@ async def test_imported_document_deduplicates_versions_and_preserves_coverage() 
                             topics=["项目复盘"],
                             evidence=[
                                 GeneratedQuestionEvidence(
-                                    section_key=section.key,
+                                    section_key=sections[index % len(sections)].key,
                                     quote="召回率从 70% 提升到 86%",
                                 )
                             ],
                             content_markdown="# 项目复盘",
                         )
-                        for section in sections
+                        for index in range(desired_questions)
                     ]
                 )
 
@@ -708,15 +955,14 @@ async def test_import_commits_questions_progressively_per_batch() -> None:
                 desired_questions: int,
                 knowledge_points: list[KnowledgePointCandidate] | None = None,
             ) -> GeneratedQuestions:
-                del desired_questions
                 self.calls += 1
                 points = knowledge_points or []
                 return GeneratedQuestions(
                     questions=[
                         GeneratedQuestion(
-                            title=f"题 {point.stable_key}",
+                            title=f"题 {point.stable_key} {self.calls} {index + 1}",
                             knowledge_point_key=point.stable_key,
-                            prompt=f"请解释 {point.title}",
+                            prompt=f"请解释 {point.title} 的第 {self.calls}-{index + 1} 个角度",
                             difficulty="基础",
                             question_type="原理",
                             framework="technical",
@@ -732,7 +978,8 @@ async def test_import_commits_questions_progressively_per_batch() -> None:
                             ],
                             content_markdown=f"# {point.title}",
                         )
-                        for point in points
+                        for index in range(desired_questions)
+                        for point in [points[index % len(points)]]
                     ]
                 )
 
@@ -775,7 +1022,7 @@ async def test_import_commits_questions_progressively_per_batch() -> None:
         )
 
         assert result.document.status == "ready"
-        assert len(result.questions) >= 1
+        assert len(result.questions) == 12
         assert any(count > 0 for count in visible_counts[:-1]), (
             "questions should become readable before final completion"
         )
@@ -840,6 +1087,125 @@ def test_question_plan_keeps_explicit_document_anchors_first() -> None:
 
     assert [point.stable_key for point, _ in plan[:6]] == [point.stable_key for point in points[:6]]
     assert sum(count for _, count in plan) == 8
+
+
+def test_question_plan_batches_preserve_total_and_provider_limits() -> None:
+    single_point = KnowledgePointCandidate(
+        stable_key="single-point",
+        title="单一知识点",
+        knowledge_type="概念",
+        interview_claim="解释单一知识点的不同角度",
+        section_keys=["section-0"],
+    )
+    batches = QuestionWorkflowService._split_question_plan([(single_point, 30)])
+
+    assert [sum(count for _, count in batch) for batch in batches] == [10, 10, 10]
+
+    mixed_plan = [
+        (
+            KnowledgePointCandidate(
+                stable_key=f"mixed-point-{index}",
+                title=f"混合知识点 {index}",
+                knowledge_type="概念",
+                interview_claim=f"解释混合知识点 {index}",
+                section_keys=[f"section-{index}"],
+            ),
+            count,
+        )
+        for index, count in enumerate([7, 6, 5, 4, 3])
+    ]
+    mixed_batches = QuestionWorkflowService._split_question_plan(mixed_plan)
+
+    assert sum(count for batch in mixed_batches for _, count in batch) == 25
+    assert all(sum(count for _, count in batch) <= 10 for batch in mixed_batches)
+    assert all(len(batch) <= 4 for batch in mixed_batches)
+
+
+@pytest.mark.asyncio
+async def test_import_fails_when_provider_cannot_reach_exact_question_count() -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    with Session(engine, expire_on_commit=False) as session:
+        owner = UserRecord(
+            username="exact-count-owner",
+            email="exact-count-owner@example.com",
+            password_hash="hash",
+            created_at=datetime.now(UTC),
+        )
+        session.add(owner)
+        session.commit()
+
+        class DuplicateProvider:
+            model_name = "duplicate-question-model"
+            prompt_version = "question-test-v1"
+
+            async def extract_knowledge_points(
+                self, sections: list[QuestionGenerationSection]
+            ) -> KnowledgePointMap:
+                return KnowledgePointMap(
+                    knowledge_points=[
+                        KnowledgePointCandidate(
+                            stable_key="cache-breakdown",
+                            title="缓存击穿",
+                            knowledge_type="场景",
+                            interview_claim="说明缓存击穿的治理方案",
+                            section_keys=[sections[0].key],
+                        )
+                    ]
+                )
+
+            async def generate_questions(
+                self,
+                sections: list[QuestionGenerationSection],
+                *,
+                desired_questions: int,
+                knowledge_points: list[KnowledgePointCandidate] | None = None,
+            ) -> GeneratedQuestions:
+                del desired_questions, knowledge_points
+                return GeneratedQuestions(
+                    questions=[
+                        GeneratedQuestion(
+                            title="如何治理缓存击穿",
+                            knowledge_point_key="cache-breakdown",
+                            prompt="如何治理缓存击穿？",
+                            difficulty="进阶",
+                            question_type="场景",
+                            framework="technical",
+                            intent="考察缓存治理",
+                            answer_outline=["说明问题", "给出方案"],
+                            common_mistakes=["忽略并发回源"],
+                            topics=["缓存"],
+                            evidence=[
+                                GeneratedQuestionEvidence(
+                                    section_key=sections[0].key,
+                                    quote="缓存击穿需要限制并发回源",
+                                )
+                            ],
+                            content_markdown="## 回答要点",
+                        )
+                    ]
+                )
+
+        text = "缓存击穿需要限制并发回源，并设置合理的超时与降级策略。"
+
+        class FakeIndexing:
+            async def index(self, document: object) -> None:
+                del document
+
+        workflow = QuestionWorkflowService(
+            session,
+            deepseek=DuplicateProvider(),  # type: ignore[arg-type]
+            rag_indexing=FakeIndexing(),  # type: ignore[arg-type]
+        )
+
+        with pytest.raises(RuntimeError, match="需要 10 道，实际 1 道"):
+            await workflow.import_document(
+                user_id=owner.id,
+                filename="缓存治理.md",
+                media_type="text/markdown",
+                text=text,
+                question_limit=10,
+            )
 
 
 @pytest.mark.asyncio

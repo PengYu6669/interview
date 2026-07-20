@@ -77,6 +77,14 @@ def require_current_user(
         raise HTTPException(status_code=401, detail=str(exc)) from exc
 
 
+def require_admin(
+    user: Annotated[UserProfile, Depends(require_current_user)],
+) -> UserProfile:
+    if user.role != "admin":
+        raise HTTPException(status_code=403, detail="需要管理员权限")
+    return user
+
+
 def optional_current_user(
     service: Annotated[AuthenticationService, Depends(get_authentication_service)],
     authorization: Annotated[str | None, Header()] = None,

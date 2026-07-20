@@ -4,6 +4,60 @@
  */
 
 export interface paths {
+    "/v1/admin/questions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Admin Questions */
+        get: operations["list_admin_questions_v1_admin_questions_get"];
+        put?: never;
+        /** Create Admin Question */
+        post: operations["create_admin_question_v1_admin_questions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/questions/{question_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Admin Question */
+        get: operations["get_admin_question_v1_admin_questions__question_id__get"];
+        /** Update Admin Question */
+        put: operations["update_admin_question_v1_admin_questions__question_id__put"];
+        post?: never;
+        /** Delete Admin Question */
+        delete: operations["delete_admin_question_v1_admin_questions__question_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/questions/{question_id}/publication": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Set Question Publication */
+        patch: operations["set_question_publication_v1_admin_questions__question_id__publication_patch"];
+        trace?: never;
+    };
     "/v1/auth/register": {
         parameters: {
             query?: never;
@@ -293,6 +347,23 @@ export interface paths {
         post?: never;
         /** Delete Career Profile */
         delete: operations["delete_career_profile_v1_career_profile_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/career/profile/from-message": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Save Career Profile From Message */
+        post: operations["save_career_profile_from_message_v1_career_profile_from_message_post"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -693,6 +764,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/questions/sets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Question Sets */
+        get: operations["list_question_sets_v1_questions_sets_get"];
+        put?: never;
+        /** Create Question Set */
+        post: operations["create_question_set_v1_questions_sets_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/questions/sets/{question_set_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Question Set */
+        get: operations["get_question_set_v1_questions_sets__question_set_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/questions": {
         parameters: {
             query?: never;
@@ -1079,6 +1185,132 @@ export interface components {
             /** Note Count */
             note_count: number;
         };
+        /** AdminQuestionDetail */
+        AdminQuestionDetail: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Slug */
+            slug: string;
+            /** Title */
+            title: string;
+            /** Prompt */
+            prompt: string;
+            /** Difficulty */
+            difficulty: string;
+            /** Question Type */
+            question_type: string;
+            /** Topics */
+            topics: components["schemas"]["TopicData"][];
+            /**
+             * Framework
+             * @default technical
+             */
+            framework: string;
+            /** Source Document Id */
+            source_document_id?: string | null;
+            /** Source Document Name */
+            source_document_name?: string | null;
+            /** Source Document Version */
+            source_document_version?: number | null;
+            /** Published */
+            published: boolean;
+            /** Owner User Id */
+            owner_user_id?: string | null;
+            /** Evidence Count */
+            evidence_count: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Intent */
+            intent: string;
+            /** Answer Outline */
+            answer_outline: string[];
+            /** Common Mistakes */
+            common_mistakes: string[];
+            /**
+             * Content Markdown
+             * @default
+             */
+            content_markdown: string;
+            /** Evidence */
+            evidence?: components["schemas"]["QuestionEvidenceData"][];
+        };
+        /** AdminQuestionSummary */
+        AdminQuestionSummary: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Slug */
+            slug: string;
+            /** Title */
+            title: string;
+            /** Prompt */
+            prompt: string;
+            /** Difficulty */
+            difficulty: string;
+            /** Question Type */
+            question_type: string;
+            /** Topics */
+            topics: components["schemas"]["TopicData"][];
+            /**
+             * Framework
+             * @default technical
+             */
+            framework: string;
+            /** Source Document Id */
+            source_document_id?: string | null;
+            /** Source Document Name */
+            source_document_name?: string | null;
+            /** Source Document Version */
+            source_document_version?: number | null;
+            /** Published */
+            published: boolean;
+            /** Owner User Id */
+            owner_user_id?: string | null;
+            /** Evidence Count */
+            evidence_count: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
+        /** AdminQuestionUpdateRequest */
+        AdminQuestionUpdateRequest: {
+            /** Title */
+            title: string;
+            /** Prompt */
+            prompt: string;
+            /**
+             * Difficulty
+             * @enum {string}
+             */
+            difficulty: "基础" | "进阶" | "高级";
+            /** Question Type */
+            question_type: string;
+            /** Framework */
+            framework: string;
+            /** Intent */
+            intent: string;
+            /** Answer Outline */
+            answer_outline: string[];
+            /** Common Mistakes */
+            common_mistakes: string[];
+            /** Topic Names */
+            topic_names: string[];
+            /**
+             * Content Markdown
+             * @default
+             */
+            content_markdown: string;
+        };
         /** AiJobStatus */
         AiJobStatus: {
             /**
@@ -1118,6 +1350,11 @@ export interface components {
             updated_at: string;
             /** Completed At */
             completed_at?: string | null;
+            /**
+             * Attempt Count
+             * @default 0
+             */
+            attempt_count: number;
         };
         /** AuthResult */
         AuthResult: {
@@ -1245,6 +1482,11 @@ export interface components {
         Body_import_questions_v1_questions_import_post: {
             /** File */
             file: string;
+            /**
+             * Question Limit
+             * @default 30
+             */
+            question_limit: number;
         };
         /** Body_parse_uploaded_document_v1_documents_parse_post */
         Body_parse_uploaded_document_v1_documents_parse_post: {
@@ -1289,6 +1531,17 @@ export interface components {
             confirmed_at?: string | null;
             /** Updated At */
             updated_at?: string | null;
+        };
+        /** CareerProfileConversationResult */
+        CareerProfileConversationResult: {
+            /** Reply */
+            reply: string;
+            profile?: components["schemas"]["CareerProfile"] | null;
+        };
+        /** CareerProfileMessageRequest */
+        CareerProfileMessageRequest: {
+            /** Message */
+            message: string;
         };
         /** CareerProfileRequest */
         CareerProfileRequest: {
@@ -2015,6 +2268,13 @@ export interface components {
         CodingWorkspaceData: {
             problem: components["schemas"]["CodingProblemSpec"];
             snapshot: components["schemas"]["CodingSnapshotData"] | null;
+        };
+        /** CreateQuestionSetRequest */
+        CreateQuestionSetRequest: {
+            /** Name */
+            name: string;
+            /** Question Ids */
+            question_ids: string[];
         };
         /** DeleteAccountRequest */
         DeleteAccountRequest: {
@@ -3272,13 +3532,25 @@ export interface components {
             covered_section_count: number;
             /** Question Count */
             question_count: number;
-            /** Knowledge Point Count */
+            /**
+             * Knowledge Point Count
+             * @default 0
+             */
             knowledge_point_count: number;
-            /** Covered Knowledge Point Count */
+            /**
+             * Covered Knowledge Point Count
+             * @default 0
+             */
             covered_knowledge_point_count: number;
-            /** Suggested Question Count */
+            /**
+             * Suggested Question Count
+             * @default 0
+             */
             suggested_question_count: number;
-            /** Requested Question Limit */
+            /**
+             * Requested Question Limit
+             * @default 30
+             */
             requested_question_limit: number;
             /**
              * Created At
@@ -3307,13 +3579,96 @@ export interface components {
             /** Quote */
             quote: string;
         };
-        /** QuestionImportResult */
-        QuestionImportResult: {
-            document: components["schemas"]["QuestionDocumentSummary"];
+        /** QuestionPublicationRequest */
+        QuestionPublicationRequest: {
+            /** Published */
+            published: boolean;
+        };
+        /** QuestionSetDetail */
+        QuestionSetDetail: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /** Kind */
+            kind: string;
+            /** Status */
+            status: string;
+            /** Target Count */
+            target_count: number;
+            /** Question Count */
+            question_count: number;
+            /** Document Id */
+            document_id?: string | null;
+            /** Document Name */
+            document_name?: string | null;
+            /**
+             * Knowledge Point Count
+             * @default 0
+             */
+            knowledge_point_count: number;
+            /**
+             * Covered Knowledge Point Count
+             * @default 0
+             */
+            covered_knowledge_point_count: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
             /** Questions */
-            questions: components["schemas"]["QuestionDetail"][];
-            /** Warnings */
-            warnings?: string[];
+            questions: components["schemas"]["QuestionSummary"][];
+        };
+        /** QuestionSetSummary */
+        QuestionSetSummary: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /** Kind */
+            kind: string;
+            /** Status */
+            status: string;
+            /** Target Count */
+            target_count: number;
+            /** Question Count */
+            question_count: number;
+            /** Document Id */
+            document_id?: string | null;
+            /** Document Name */
+            document_name?: string | null;
+            /**
+             * Knowledge Point Count
+             * @default 0
+             */
+            knowledge_point_count: number;
+            /**
+             * Covered Knowledge Point Count
+             * @default 0
+             */
+            covered_knowledge_point_count: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
         };
         /** QuestionSummary */
         QuestionSummary: {
@@ -3379,7 +3734,7 @@ export interface components {
         ResumeProfile: {
             /**
              * Schema Version
-             * @default 1.0
+             * @default 1.1
              */
             schema_version: string;
             /** Target Role */
@@ -3600,6 +3955,12 @@ export interface components {
             /** Email */
             email: string;
             /**
+             * Role
+             * @default user
+             * @enum {string}
+             */
+            role: "user" | "admin";
+            /**
              * Created At
              * Format: date-time
              */
@@ -3785,6 +4146,11 @@ export interface components {
              * Format: date
              */
             week_start: string;
+            /**
+             * Instruction
+             * @default
+             */
+            instruction: string;
         };
         /** WeeklyPlanItem */
         WeeklyPlanItem: {
@@ -3904,6 +4270,210 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    list_admin_questions_v1_admin_questions_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminQuestionSummary"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_admin_question_v1_admin_questions_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminQuestionUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminQuestionDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_admin_question_v1_admin_questions__question_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                question_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminQuestionDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_admin_question_v1_admin_questions__question_id__put: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                question_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminQuestionUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminQuestionDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_admin_question_v1_admin_questions__question_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                question_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_question_publication_v1_admin_questions__question_id__publication_patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                question_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QuestionPublicationRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminQuestionSummary"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     register_v1_auth_register_post: {
         parameters: {
             query?: never;
@@ -4624,6 +5194,41 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    save_career_profile_from_message_v1_career_profile_from_message_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CareerProfileMessageRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CareerProfileConversationResult"];
+                };
             };
             /** @description Validation Error */
             422: {
@@ -5546,6 +6151,105 @@ export interface operations {
             };
         };
     };
+    list_question_sets_v1_questions_sets_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuestionSetSummary"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_question_set_v1_questions_sets_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateQuestionSetRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuestionSetDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_question_set_v1_questions_sets__question_set_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                question_set_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuestionSetDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_questions_v1_questions_get: {
         parameters: {
             query?: {
@@ -5708,7 +6412,9 @@ export interface operations {
     };
     regenerate_question_document_v1_questions_documents__document_id__regenerate_post: {
         parameters: {
-            query?: never;
+            query?: {
+                additional_limit?: number;
+            };
             header?: {
                 authorization?: string | null;
             };
@@ -5720,12 +6426,12 @@ export interface operations {
         requestBody?: never;
         responses: {
             /** @description Successful Response */
-            200: {
+            202: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["QuestionImportResult"];
+                    "application/json": components["schemas"]["AiJobStatus"];
                 };
             };
             /** @description Validation Error */
@@ -6091,7 +6797,9 @@ export interface operations {
     extract_resume_profile_v1_resumes_extract_post: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                authorization?: string | null;
+            };
             path?: never;
             cookie?: never;
         };

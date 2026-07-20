@@ -45,7 +45,7 @@ function heroContent(phase: HubPhase, interviewTask: ReturnType<typeof useTraini
   if (phase === "unconfigured") {
     return {
       title: "上传简历和目标岗位，开始第一场模拟面试",
-      body: "实时语音、追问深挖、证据复盘——不是做题，是练讲清你的项目。",
+      body: "实时语音、追问深挖、针对性复盘——不是做题，是练讲清你的项目。",
       meta: "约 8 分钟准备 · 进入语音考场",
     };
   }
@@ -61,7 +61,7 @@ function heroContent(phase: HubPhase, interviewTask: ReturnType<typeof useTraini
       ? `弱项复训：${profile.next_training}`
       : "进入实时语音模拟面试",
     body: "",
-    meta: "约 30 分钟 · 实时语音 · 证据化复盘",
+    meta: "约 30 分钟 · 实时语音 · 面试复盘",
   };
 }
 
@@ -114,11 +114,11 @@ export function TrainingHub() {
                 摄像头 · 转写 · 追问
               </span>
             </div>
-            <h2 className="mt-3 max-w-[40rem] text-balance text-2xl font-semibold leading-snug">
+            <h2 className="mt-3 w-full text-2xl font-semibold leading-snug">
               {hero.title}
             </h2>
             {hero.body && (
-              <p className="mt-2 max-w-[40rem] text-sm leading-relaxed text-white/85">{hero.body}</p>
+              <p className="mt-2 w-full text-sm leading-relaxed text-white/85">{hero.body}</p>
             )}
             <small className="mt-3 flex items-center gap-1.5 text-[13px] tabular-nums text-white/75">
               <Clock3 size={13} />
@@ -165,7 +165,7 @@ export function TrainingHub() {
                 onClick={() => void startWeaknessInterview()}
               >
                 {startingRecommendation && <LoaderCircle className="spin" size={15} />}
-                {startingRecommendation ? "正在准备来源证据" : "按弱项开语音面试"}
+                {startingRecommendation ? "正在准备训练上下文" : "按弱项开语音面试"}
                 <ArrowRight size={16} />
               </Button>
             ) : (

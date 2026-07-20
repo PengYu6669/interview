@@ -4,7 +4,6 @@ import { z } from "zod";
 export type QuestionSummary = components["schemas"]["QuestionSummary"];
 export type QuestionDetail = components["schemas"]["QuestionDetail"];
 export type UserQuestionState = components["schemas"]["UserQuestionState"];
-export type QuestionImportResult = components["schemas"]["QuestionImportResult"];
 export type QuestionDocumentSummary = components["schemas"]["QuestionDocumentSummary"];
 export type QuestionChatAnswer = components["schemas"]["QuestionChatAnswer"];
 export type QuestionChatHistory = components["schemas"]["QuestionChatHistory"];
@@ -75,12 +74,6 @@ export const questionDocumentSchema: z.ZodType<QuestionDocumentSummary> = z.obje
   requested_question_limit: z.number().int().min(10).max(100),
   created_at: z.string(),
   updated_at: z.string(),
-});
-
-export const questionImportResultSchema: z.ZodType<QuestionImportResult> = z.object({
-  document: questionDocumentSchema,
-  questions: z.array(questionDetailSchema),
-  warnings: z.array(z.string()),
 });
 
 export const questionChatAnswerSchema: z.ZodType<QuestionChatAnswer> = z.object({

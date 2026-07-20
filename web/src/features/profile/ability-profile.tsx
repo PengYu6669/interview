@@ -62,7 +62,7 @@ export function AbilityProfile() {
     return skills.sort((left, right) => left.score - right.score || left.confidence - right.confidence);
   }, [profile?.skills, sortMode]);
 
-  if (!profile && !error) return <main className="content-container"><section className="profile-loading"><LoaderCircle className="spin" size={26} /><strong>正在汇总训练证据</strong></section></main>;
+  if (!profile && !error) return <main className="content-container"><section className="profile-loading"><LoaderCircle className="spin" size={26} /><strong>正在汇总训练表现</strong></section></main>;
 
   async function startRetraining({
     key,
@@ -134,8 +134,8 @@ export function AbilityProfile() {
             </div>
             <div className="grid grid-cols-3 border-t border-[var(--line)] py-5 md:grid-cols-1 md:border-l md:border-t-0 md:pl-7">
               <Metric label="有效报告" value={profile.report_count} />
-              <Metric label="证据覆盖" value={profile.average_coverage === null ? "--" : `${profile.average_coverage}%`} />
-              <Metric label="证据稳定度" value={evidenceStability === null ? "--" : `${evidenceStability}%`} />
+              <Metric label="训练覆盖" value={profile.average_coverage === null ? "--" : `${profile.average_coverage}%`} />
+              <Metric label="表现稳定度" value={evidenceStability === null ? "--" : `${evidenceStability}%`} />
             </div>
           </section>
 
@@ -151,7 +151,7 @@ export function AbilityProfile() {
                 {sortedSkills.slice(0, 3).map((item) => <SkillSummary key={item.skill} item={item} />)}
               </div>
             ) : (
-              <div className="mt-5 py-10 text-center text-sm text-[var(--muted)]">当前还没有可聚合的技术能力证据</div>
+              <div className="mt-5 py-10 text-center text-sm text-[var(--muted)]">当前还没有足够的技术能力记录</div>
             )}
           </section>
 
@@ -167,7 +167,7 @@ export function AbilityProfile() {
 
           <details className="group border-b border-[var(--line)] py-1">
             <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-4 py-3 text-sm font-semibold">
-              完整能力证据 <span className="ml-auto text-xs font-normal text-[var(--muted)]">{sortedSkills.length} 项技术能力 · {profile.coaching.skills.length} 项专项能力</span>
+              完整能力表现 <span className="ml-auto text-xs font-normal text-[var(--muted)]">{sortedSkills.length} 项技术能力 · {profile.coaching.skills.length} 项专项能力</span>
               <ChevronDown className="transition-transform group-open:rotate-180" size={18} />
             </summary>
             <div className="grid gap-8 pb-8">
@@ -177,7 +177,7 @@ export function AbilityProfile() {
                   <div className="mt-3 divide-y divide-[var(--line)] border-y border-[var(--line)]">
                     {profile.coaching.skills.map((item) => (
                       <div className="grid gap-3 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center" key={item.dimension}>
-                        <div><strong className="text-sm">{COACHING_DIMENSION_LABELS[item.dimension] ?? item.dimension}</strong><p className="mt-1 text-xs leading-5 text-[var(--muted)]">{item.latest_feedback}</p><small className="mt-1 block text-xs text-[var(--muted)]">{COACHING_MODE_LABELS[item.mode]} · {item.evidence_count} 条证据 · 可信度 {Math.round(item.confidence * 100)}%</small></div>
+                        <div><strong className="text-sm">{COACHING_DIMENSION_LABELS[item.dimension] ?? item.dimension}</strong><p className="mt-1 text-xs leading-5 text-[var(--muted)]">{item.latest_feedback}</p><small className="mt-1 block text-xs text-[var(--muted)]">{COACHING_MODE_LABELS[item.mode]} · {item.evidence_count} 次记录 · 可信度 {Math.round(item.confidence * 100)}%</small></div>
                         <Button asChild variant="secondary" size="sm"><Link href={`/training/new?mode=${item.mode}&difficulty=${profile.coaching.next_difficulty}&focus=${encodeURIComponent(item.latest_feedback)}`}><Target size={13} />再练一次</Link></Button>
                       </div>
                     ))}
@@ -185,7 +185,7 @@ export function AbilityProfile() {
                 ) : <p className="mt-3 text-sm text-[var(--muted)]">还没有专项训练记录</p>}
               </section>
               <section>
-                <h3 className="text-sm font-semibold">技术能力证据</h3>
+                <h3 className="text-sm font-semibold">技术能力表现</h3>
                 <div className="mt-3 grid gap-3">
                   {sortedSkills.map((item) => <SkillRow item={item} key={item.skill} loading={retrainingKey === item.skill} disabled={Boolean(retrainingKey)} onRetrain={() => void startRetraining({ key: item.skill, focus: item.training_focus, sourceSessionId: item.source_session_id, improvement: { skill: item.skill, title: item.training_focus } })} />)}
                 </div>
@@ -225,9 +225,9 @@ function SkillRow({
   onRetrain: () => void;
 }) {
   const confidence = Math.round(item.confidence * 100);
-  const confidenceLabel = confidence >= 70 ? "证据较稳定" : confidence >= 40 ? "初步判断" : "样本不足";
+  const confidenceLabel = confidence >= 70 ? "表现较稳定" : confidence >= 40 ? "初步判断" : "样本不足";
   const trendLabel = item.trend > 0 ? `提升 ${item.trend} 分` : item.trend < 0 ? `下降 ${Math.abs(item.trend)} 分` : "近期持平";
-  return <EvidenceChain conclusion={`${item.skill} · 当前 ${item.score} 分`} evidence={item.evidence_quote} basis={`${item.evidence_count} 条证据来自 ${item.report_count} 场训练，${trendLabel}。分数按证据覆盖与置信度加权，来源报告保留完整上下文。`} confidence={item.confidence} action={item.training_focus} meta={confidenceLabel} controls={<div className="skill-evidence-controls"><Link href={`/report?session=${item.source_session_id}`} title="查看来源报告" aria-label={`查看 ${item.skill} 的来源报告`}><FileChartColumn size={14} />来源</Link><button type="button" disabled={disabled} onClick={onRetrain}>{loading ? <LoaderCircle className="spin" size={13} /> : <Target size={13} />}专项复训</button></div>} tone={confidence < 40 ? "warning" : item.trend > 0 ? "positive" : "neutral"} />;
+  return <EvidenceChain conclusion={`${item.skill} · 当前 ${item.score} 分`} evidence={item.evidence_quote} basis={`${item.evidence_count} 次表现记录来自 ${item.report_count} 场训练，${trendLabel}。`} confidence={item.confidence} action={item.training_focus} meta={confidenceLabel} controls={<div className="skill-evidence-controls"><Link href={`/report?session=${item.source_session_id}`} title="查看训练复盘" aria-label={`查看 ${item.skill} 的训练复盘`}><FileChartColumn size={14} />复盘</Link><button type="button" disabled={disabled} onClick={onRetrain}>{loading ? <LoaderCircle className="spin" size={13} /> : <Target size={13} />}专项复训</button></div>} tone={confidence < 40 ? "warning" : item.trend > 0 ? "positive" : "neutral"} />;
 }
 
 function errorMessage(payload: unknown, fallback: string) {

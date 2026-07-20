@@ -38,11 +38,11 @@ export function InterviewSetup({ careerPlanItemId }: { careerPlanItemId?: string
         {sourceSessionId && (
           <section className="retraining-brief">
             <div>
-              <span>弱项复训来源</span>
+              <span>弱项复训</span>
               <h2>这一次不是重新做题，而是验证上次缺口</h2>
               <p>{state.trainingFocus}</p>
             </div>
-            <Link href={`/report?session=${sourceSessionId}`}>查看来源证据</Link>
+            <Link href={`/report?session=${sourceSessionId}`}>查看上次复盘</Link>
           </section>
         )}
         <div className="setup-workspace">

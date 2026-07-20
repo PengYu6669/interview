@@ -246,7 +246,7 @@ class QuestionWorkflowService:
             self._session.add(record)
             point_records[point.stable_key] = record
         document.knowledge_point_count = len(point_records)
-        desired_total = min(question_limit, int(len(point_records) * 1.2))
+        desired_total = question_limit
         generation_plan = self._question_plan(
             merged_map.knowledge_points,
             desired_total,
@@ -255,9 +255,7 @@ class QuestionWorkflowService:
         generated_warnings: list[str] = list(knowledge_warnings)
         if merge_warning:
             generated_warnings.append(merge_warning)
-        point_batches = [
-            generation_plan[offset : offset + 4] for offset in range(0, len(generation_plan), 4)
-        ]
+        point_batches = self._split_question_plan(generation_plan)
         batch_count = max(1, len(point_batches))
         details: list[QuestionDetail] = []
         fingerprints: set[str] = set()
@@ -313,7 +311,7 @@ class QuestionWorkflowService:
             completed_batches += 1
             generated_warnings.extend(generated.warnings)
             batch_saved = await self._persist_generated_items(
-                generated.questions,
+                generated.questions[: max(0, desired_total - len(details))],
                 user_id=user_id,
                 filename=filename,
                 document=document,
@@ -348,9 +346,49 @@ class QuestionWorkflowService:
                     document.id,
                 )
 
-        if not details:
-            failures = "；".join(generated_warnings[:3])
-            raise RuntimeError(f"资料没有生成可保存的题目：{failures}")
+        for retry in range(2):
+            if len(details) >= desired_total:
+                break
+            remaining = desired_total - len(details)
+            refill_plan = self._question_plan(merged_map.knowledge_points, remaining)
+            for batch_plan in self._split_question_plan(refill_plan):
+                batch_points = [
+                    point.model_copy(update={"section_keys": point.section_keys[:1]})
+                    for point, _ in batch_plan
+                ]
+                batch_sections = [section_map[point.section_keys[0]] for point in batch_points]
+                try:
+                    refill = await provider.generate_questions(
+                        batch_sections,
+                        desired_questions=sum(count for _, count in batch_plan),
+                        knowledge_points=batch_points,
+                    )
+                except RuntimeError as exc:
+                    generated_warnings.append(f"第 {retry + 1} 轮补齐失败：{exc}")
+                    continue
+                generated_warnings.extend(refill.warnings)
+                await self._persist_generated_items(
+                    refill.questions[: max(0, desired_total - len(details))],
+                    user_id=user_id,
+                    filename=filename,
+                    document=document,
+                    question_set=question_set,
+                    point_records=point_records,
+                    section_map=section_map,
+                    details=details,
+                    fingerprints=fingerprints,
+                    covered_sections=covered_sections,
+                    saved_point_keys=saved_point_keys,
+                    sort_offset=0,
+                    index_now=False,
+                )
+                self._session.commit()
+            generated_warnings.append(f"已执行第 {retry + 1} 轮题目补齐")
+
+        if len(details) != desired_total:
+            raise RuntimeError(
+                f"题目生成未达到目标题数：需要 {desired_total} 道，实际 {len(details)} 道"
+            )
 
         if progress:
             progress(f"正在建立题目索引 {len(details)} 道", 90, document.id)
@@ -424,19 +462,11 @@ class QuestionWorkflowService:
         document = self._session.get(QuestionDocumentRecord, document_id)
         if not document:
             return
-        question_count = int(
-            self._session.scalar(
-                select(func.count())
-                .select_from(QuestionRecord)
-                .where(QuestionRecord.source_document_id == document.id)
-            )
-            or 0
-        )
-        document.status = "ready" if question_count else "failed"
+        document.status = "failed"
         document.warnings = [*list(document.warnings), f"本次生成未完整结束：{error}"]
         document.updated_at = datetime.now(UTC)
         for question_set in document.question_sets:
-            question_set.status = "ready" if question_count else "failed"
+            question_set.status = "failed"
             question_set.updated_at = document.updated_at
         self._session.commit()
 
@@ -934,6 +964,36 @@ class QuestionWorkflowService:
         for index in range(desired_total - len(selected)):
             counts[index % len(counts)] += 1
         return list(zip(selected, counts, strict=True))
+
+    @staticmethod
+    def _split_question_plan(
+        plan: list[tuple[KnowledgePointCandidate, int]],
+        *,
+        max_questions: int = 10,
+        max_points: int = 4,
+    ) -> list[list[tuple[KnowledgePointCandidate, int]]]:
+        batches: list[list[tuple[KnowledgePointCandidate, int]]] = []
+        current: list[tuple[KnowledgePointCandidate, int]] = []
+        current_total = 0
+        for point, count in plan:
+            remaining = count
+            while remaining > 0:
+                if current and (current_total >= max_questions or len(current) >= max_points):
+                    batches.append(current)
+                    current = []
+                    current_total = 0
+                available = max_questions - current_total
+                take = min(remaining, available)
+                current.append((point, take))
+                current_total += take
+                remaining -= take
+                if current_total >= max_questions:
+                    batches.append(current)
+                    current = []
+                    current_total = 0
+        if current:
+            batches.append(current)
+        return batches
 
     async def _persist_generated_items(
         self,

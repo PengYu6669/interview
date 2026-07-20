@@ -310,18 +310,18 @@ export function CoachingRoom({ sessionId }: { sessionId: string }) {
                             <header className="flex justify-between gap-2.5">
                               <strong className="text-xs">{COACHING_DIMENSION_LABELS[item.dimension] ?? item.dimension}</strong>
                               <span className="text-xs text-[var(--muted)]">
-                                {item.change === "improved" ? "有进步" : item.change === "regressed" ? "需回看" : item.change === "stable" ? "基本稳定" : "证据不足"}
+                                {item.change === "improved" ? "有进步" : item.change === "regressed" ? "需回看" : item.change === "stable" ? "基本稳定" : "暂不确定"}
                               </span>
                             </header>
                             <div className="mt-2 grid grid-cols-[1fr_auto_1fr] items-center gap-2 max-[620px]:grid-cols-1">
                               <blockquote className="min-w-0 bg-[var(--bg-subtle)] p-2 text-xs leading-snug">
                                 <small className="mb-0.5 block text-[var(--muted)]">第一次</small>
-                                {item.before_quote ?? "未找到有效证据"}
+                                {item.before_quote ?? "暂无上次回答片段"}
                               </blockquote>
                               <ArrowRight className="max-[620px]:rotate-90" size={15} />
                               <blockquote className="min-w-0 bg-[var(--bg-subtle)] p-2 text-xs leading-snug">
                                 <small className="mb-0.5 block text-[var(--muted)]">第二次</small>
-                                {item.after_quote ?? "未找到有效证据"}
+                                {item.after_quote ?? "暂无本次回答片段"}
                               </blockquote>
                             </div>
                             <p className="mt-1.5 text-xs text-[var(--muted)]">{item.explanation}</p>

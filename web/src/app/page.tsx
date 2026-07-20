@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 const capabilities = [
   { icon: FileSearch, title: "从你的经历出题", text: "先解析简历与岗位描述，再让你确认系统理解得是否正确。" },
   { icon: Target, title: "追问具体，而非背题", text: "围绕项目选择、故障处理和技术取舍继续深挖。" },
-  { icon: Quote, title: "评价可以回到证据", text: "复盘引用你的原回答，区分能力不足、证据不足与未考察。" },
+  { icon: Quote, title: "复盘对应真实回答", text: "结合你的原回答，区分能力不足、表达不清与本场未考察。" },
 ];
 
 export default async function Home({ searchParams }: { searchParams: Promise<{ account?: string }> }) {
@@ -33,7 +33,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ a
         </Link>
         <nav className="hidden items-center gap-6 text-[13px] text-[var(--muted)] sm:flex" aria-label="首页导航">
           <a href="#how-it-works" className="hover:text-[var(--ink)] transition-colors">如何工作</a>
-          <a href="#evidence" className="hover:text-[var(--ink)] transition-colors">证据化复盘</a>
+          <a href="#review" className="hover:text-[var(--ink)] transition-colors">训练复盘</a>
         </nav>
         <div className="flex items-center gap-3">
           {user ? (
@@ -97,7 +97,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ a
               </div>
               <div className="mt-6 flex flex-wrap gap-x-6 gap-y-1.5 text-xs text-[var(--muted)]">
                 <span className="inline-flex items-center gap-1.5"><ShieldCheck size={13} />材料默认保留 7 天</span>
-                <span className="inline-flex items-center gap-1.5"><CheckCircle2 size={13} />评价附带回答证据</span>
+                <span className="inline-flex items-center gap-1.5"><CheckCircle2 size={13} />评价对应本场回答</span>
               </div>
             </div>
 
@@ -140,7 +140,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ a
                   </li>
                   <li className="flex items-center gap-2 text-xs font-medium text-[var(--ink)]">
                     <SearchCheck size={13} className="text-[var(--accent-muted)]" />
-                    <span>匹配回答证据</span>
+                    <span>分析本轮回答</span>
                     <span className="ml-auto text-xs text-[var(--accent)]">进行中</span>
                   </li>
                   <li className="flex items-center gap-2 text-xs text-[var(--muted)]">
@@ -176,8 +176,8 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ a
           </div>
         </section>
 
-        {/* Evidence */}
-        <section id="evidence" className="mx-auto max-w-[1200px] px-7 py-16 sm:py-24">
+        {/* Review */}
+        <section id="review" className="mx-auto max-w-[1200px] px-7 py-16 sm:py-24">
           <div className="grid items-center gap-12 lg:grid-cols-[1fr_1fr] lg:gap-16">
             <div>
               <p className="inline-flex items-center gap-2 text-xs font-medium uppercase text-[var(--accent)]">
@@ -186,11 +186,11 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ a
               </p>
               <h2 className="mt-3 text-balance text-2xl font-semibold">知道哪里没讲清，也知道该怎么补</h2>
               <p className="mt-3 max-w-[420px] text-[15px] leading-relaxed text-[var(--muted)]">
-                每条评价保留回答证据、评分标准和模型版本。没有足够证据时，系统会说明&ldquo;不确定&rdquo;，而不是给你编一个结论。
+                每条评价都结合本场回答、评分标准和模型版本。回答信息不足时，系统会说明&ldquo;暂不确定&rdquo;，不会强行下结论。
               </p>
             </div>
             <blockquote className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-6">
-              <span className="text-xs font-medium uppercase text-[var(--accent)]">你的回答证据</span>
+              <span className="text-xs font-medium uppercase text-[var(--accent)]">你的回答</span>
               <p className="mt-3 text-[15px] leading-relaxed">
                 &ldquo;我用 LangGraph 重构了流程，因为原来的 Chain 难以恢复中断状态……&rdquo;
               </p>

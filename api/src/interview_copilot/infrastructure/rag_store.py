@@ -79,6 +79,32 @@ class SqlAlchemyRagStore:
         self._session.flush()
         return record.id
 
+    def set_question_visibility(
+        self, *, question_id: UUID, owner_user_id: UUID | None, visibility: str
+    ) -> None:
+        record = self._session.scalar(
+            select(RagDocumentRecord).where(
+                RagDocumentRecord.source_type == "question",
+                RagDocumentRecord.source_id == question_id,
+            )
+        )
+        if not record:
+            return
+        record.owner_user_id = owner_user_id
+        record.visibility = visibility
+        self._session.flush()
+
+    def delete_question(self, *, question_id: UUID) -> None:
+        record = self._session.scalar(
+            select(RagDocumentRecord).where(
+                RagDocumentRecord.source_type == "question",
+                RagDocumentRecord.source_id == question_id,
+            )
+        )
+        if record:
+            self._session.delete(record)
+            self._session.flush()
+
 
 class PostgresRagSearchRepository:
     def __init__(self, session: Session) -> None:

@@ -2,11 +2,12 @@
 
 import { ArrowLeft, Bot, Check, Edit3, FileText, LoaderCircle, MessageSquareText, RefreshCw, Send, X } from "lucide-react";
 import Link from "next/link";
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 import { questionChatAnswerSchema, questionChatHistorySchema, questionDetailSchema, type QuestionChatMessageData, type QuestionDetail } from "@/lib/questions";
+import { cleanQuestionMarkdown } from "@/lib/question-markdown";
 
 import { StudyActions } from "./study-actions";
 
@@ -45,7 +46,7 @@ export function QuestionWorkspace({ slug, planId, planItemId }: { slug: string; 
       const detail = questionDetailSchema.parse(payload);
       setQuestion(detail);
       setTitle(detail.title);
-      setMarkdown(detail.content_markdown?.trim() || fallbackMarkdown(detail));
+      setMarkdown(cleanQuestionMarkdown(detail.content_markdown?.trim() || fallbackMarkdown(detail)));
       const historyResponse = await fetch(`/api/questions/${detail.id}/chat`, { cache: "no-store" });
       if (!active) return;
       if (historyResponse.status === 401) {
@@ -66,16 +67,16 @@ export function QuestionWorkspace({ slug, planId, planItemId }: { slug: string; 
     return () => { active = false; };
   }, [slug]);
 
-  const sourceLabel = useMemo(() => question?.source_document_name || (question?.sources?.length ? "公共题库资料" : "题目学习内容"), [question]);
-
   async function saveContent() {
     if (!question) return;
+    const cleanedMarkdown = cleanQuestionMarkdown(markdown);
     setSaving(true);
     setSaveMessage("");
     try {
-      const response = await fetch(`/api/questions/${question.id}/content`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title, content_markdown: markdown }) });
+      const response = await fetch(`/api/questions/${question.id}/content`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title, content_markdown: cleanedMarkdown }) });
       if (!response.ok) throw new Error(errorMessage(await response.json(), "保存失败"));
-      setQuestion({ ...question, title, content_markdown: markdown });
+      setQuestion({ ...question, title, content_markdown: cleanedMarkdown });
+      setMarkdown(cleanedMarkdown);
       setEditing(false);
       setSaveMessage("内容和检索索引已更新");
     } catch (caught) {
@@ -114,12 +115,12 @@ export function QuestionWorkspace({ slug, planId, planItemId }: { slug: string; 
     <div className="question-workspace-topbar"><Link className="back-link" href="/questions"><ArrowLeft size={15} />返回题库</Link><div>{question.editable && !editing && <button className="secondary-action" type="button" onClick={() => setEditing(true)}><Edit3 size={15} />编辑内容</button>}{editing && <><button className="ghost-action" type="button" onClick={() => { setEditing(false); setTitle(question.title); setMarkdown(question.content_markdown?.trim() || fallbackMarkdown(question)); }} disabled={saving}><X size={15} />取消</button><button className="primary-cta" type="button" onClick={() => void saveContent()} disabled={saving || !title.trim() || !markdown.trim()}>{saving ? <LoaderCircle className="spin" size={15} /> : <Check size={15} />}保存并更新索引</button></>}</div></div>
     <div className="question-workspace-layout">
       <article className="question-reading-pane">
-        <header><div className="question-detail-meta"><span className={`difficulty difficulty-${question.difficulty}`}>{question.difficulty}</span><span>{question.question_type}</span>{question.topics?.map((topic) => <span key={topic.id}>{topic.name}</span>)}</div>{editing ? <input className="question-title-editor" value={title} maxLength={250} onChange={(event) => setTitle(event.target.value)} aria-label="题目标题" /> : <h1>{question.title}</h1>}<div className="question-origin"><FileText size={14} /><span>内容来源：{sourceLabel}</span>{saveMessage && <em>{saveMessage}</em>}</div></header>
+        <header><div className="question-detail-meta"><span className={`difficulty difficulty-${question.difficulty}`}>{question.difficulty}</span><span>{question.question_type}</span>{question.topics?.map((topic) => <span key={topic.id}>{topic.name}</span>)}</div>{editing ? <input className="question-title-editor" value={title} maxLength={250} onChange={(event) => setTitle(event.target.value)} aria-label="题目标题" /> : <h1>{question.title}</h1>}{saveMessage && <div className="question-origin"><em>{saveMessage}</em></div>}</header>
         {editing ? <div className="markdown-editor"><div className="markdown-editor-label"><span>Markdown 内容</span><small>{markdown.length.toLocaleString()} / 80,000</small></div><textarea value={markdown} maxLength={80_000} onChange={(event) => setMarkdown(event.target.value)} spellCheck={false} /></div> : <div className="markdown-body"><ReactMarkdown remarkPlugins={[remarkGfm]}>{markdown}</ReactMarkdown></div>}
       </article>
 
       <aside className="question-learning-rail">
-        <section className="question-ai-panel"><div className="panel-heading"><div className="ai-avatar"><Bot size={17} /></div><div><h2>基于资料问 AI</h2><p>连续对话，每轮回答都重新检索当前题目资料</p></div>{messages.length > 0 && <button className="new-question-chat" type="button" disabled={chatting} onClick={() => { setMessages([]); setConversationId(null); setChatError(""); }} title="开始新对话"><RefreshCw size={14} /></button>}</div>{chatAccess === false ? <div className="question-chat-login"><MessageSquareText size={18} /><strong>登录后开始连续问答</strong><p>对话和引用会保存到当前账号。</p><Link className="primary-cta" href={`/login?next=${encodeURIComponent(`/questions/${slug}`)}`}>登录后继续</Link></div> : <><div className="question-chat-messages" aria-live="polite">{messages.length ? messages.map((message, index) => <ChatMessage message={message} key={`${message.created_at}-${index}`} />) : <div className="question-chat-empty"><MessageSquareText size={18} /><span>围绕这道题继续追问实现细节、回答结构或证据不足之处</span></div>}{chatting && <div className="question-chat-thinking"><LoaderCircle className="spin" size={15} />正在检索资料并组织回答</div>}</div><form onSubmit={ask}><label><span className="sr-only">向 AI 提问</span><textarea value={chatInput} onChange={(event) => setChatInput(event.target.value)} maxLength={4_000} placeholder="继续追问这道题…" /></label><button type="submit" disabled={chatting || !chatInput.trim()}>{chatting ? <LoaderCircle className="spin" size={16} /> : <Send size={16} />}发送</button></form>{chatError && <p className="chat-error" role="alert">{chatError}</p>}</>}</section>
+        <section className="question-ai-panel"><div className="panel-heading"><div className="ai-avatar"><Bot size={17} /></div><div><h2>围绕题目问 AI</h2><p>连续对话，帮助你完善回答结构和表达</p></div>{messages.length > 0 && <button className="new-question-chat" type="button" disabled={chatting} onClick={() => { setMessages([]); setConversationId(null); setChatError(""); }} title="开始新对话"><RefreshCw size={14} /></button>}</div>{chatAccess === false ? <div className="question-chat-login"><MessageSquareText size={18} /><strong>登录后开始连续问答</strong><p>对话会保存到当前账号。</p><Link className="primary-cta" href={`/login?next=${encodeURIComponent(`/questions/${slug}`)}`}>登录后继续</Link></div> : <><div className="question-chat-messages" aria-live="polite">{messages.length ? messages.map((message, index) => <ChatMessage message={message} key={`${message.created_at}-${index}`} />) : <div className="question-chat-empty"><MessageSquareText size={18} /><span>继续追问实现细节、回答结构或容易遗漏的内容</span></div>}{chatting && <div className="question-chat-thinking"><LoaderCircle className="spin" size={15} />正在组织回答</div>}</div><form onSubmit={ask}><label><span className="sr-only">向 AI 提问</span><textarea value={chatInput} onChange={(event) => setChatInput(event.target.value)} maxLength={4_000} placeholder="继续追问这道题…" /></label><button type="submit" disabled={chatting || !chatInput.trim()}>{chatting ? <LoaderCircle className="spin" size={16} /> : <Send size={16} />}发送</button></form>{chatError && <p className="chat-error" role="alert">{chatError}</p>}</>}</section>
         <StudyActions questionId={question.id} planId={planId} planItemId={planItemId} />
       </aside>
     </div>
@@ -128,6 +129,5 @@ export function QuestionWorkspace({ slug, planId, planItemId }: { slug: string; 
 
 function ChatMessage({ message }: { message: QuestionChatMessageData }) {
   if (message.role === "user") return <div className="question-chat-message user"><span>你</span><p>{message.content}</p></div>;
-  const citations = message.citations ?? [];
-  return <div className="question-chat-message assistant"><span><Bot size={13} />AI 助教</span><div className="markdown-body compact"><ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown></div>{citations.length > 0 && <div className="citation-list"><strong>引用依据</strong>{citations.map((citation) => <details key={`${citation.index}-${citation.title}-${citation.quote.slice(0, 12)}`}><summary><span>[{citation.index}]</span>{citation.title}</summary><p>{citation.quote}</p>{citation.url && <a href={citation.url} target="_blank" rel="noreferrer">查看原始来源</a>}</details>)}</div>}</div>;
+  return <div className="question-chat-message assistant"><span><Bot size={13} />AI 助教</span><div className="markdown-body compact"><ReactMarkdown remarkPlugins={[remarkGfm]}>{cleanQuestionMarkdown(message.content)}</ReactMarkdown></div></div>;
 }

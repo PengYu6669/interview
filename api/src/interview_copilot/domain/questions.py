@@ -46,6 +46,21 @@ class QuestionDetail(QuestionSummary):
     evidence: list[QuestionEvidenceData] = Field(default_factory=list)
 
 
+class AdminQuestionSummary(QuestionSummary):
+    published: bool
+    owner_user_id: UUID | None = None
+    evidence_count: int = Field(ge=0)
+    created_at: datetime
+
+
+class AdminQuestionDetail(AdminQuestionSummary):
+    intent: str
+    answer_outline: list[str]
+    common_mistakes: list[str]
+    content_markdown: str = ""
+    evidence: list[QuestionEvidenceData] = Field(default_factory=list)
+
+
 class QuestionDocumentSummary(BaseModel):
     id: UUID
     filename: str

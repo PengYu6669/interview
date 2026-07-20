@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
@@ -10,6 +11,7 @@ class UserProfile(BaseModel):
     id: UUID
     username: str
     email: str
+    role: Literal["user", "admin"] = "user"
     created_at: datetime
 
 
