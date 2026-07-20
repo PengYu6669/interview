@@ -123,3 +123,8 @@ class CareerWorkspace(BaseModel):
     weekly_plan: WeeklyPlan | None
     plan_history: list[WeeklyPlan] = Field(default_factory=list)
     question_options: list[CareerQuestionOption] = Field(default_factory=list)
+
+
+class CareerProfileConversationResult(BaseModel):
+    reply: str = Field(min_length=1, max_length=500)
+    profile: CareerProfile | None = None

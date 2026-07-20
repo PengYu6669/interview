@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from interview_copilot.application.agent.career_planner import (
     CareerPlanAgentItem,
     CareerPlanAgentOutput,
+    CareerProfileAgentOutput,
 )
 from interview_copilot.application.agent.skills import ActivatedSkill, SkillMetadata
 from interview_copilot.application.career import CareerService
@@ -24,8 +25,12 @@ class FakePlanner:
 
     def __init__(self, question_id: UUID) -> None:
         self.question_id = question_id
+        self.last_user_data: dict[str, object] = {}
 
-    async def plan(self, **_: object) -> tuple[ActivatedSkill, CareerPlanAgentOutput]:
+    async def plan(self, **kwargs: object) -> tuple[ActivatedSkill, CareerPlanAgentOutput]:
+        user_data = kwargs.get("user_data")
+        if isinstance(user_data, dict):
+            self.last_user_data = user_data
         return (
             ActivatedSkill(
                 metadata=SkillMetadata(
@@ -57,6 +62,15 @@ class FakePlanner:
                     )
                 ],
             ),
+        )
+
+    async def profile_from_message(self, **_: object) -> CareerProfileAgentOutput:
+        return CareerProfileAgentOutput(
+            reply="已记录目标岗位和本周时间。",
+            ready=True,
+            target_role="前端工程师",
+            weekly_hours=8,
+            available_weekdays=[1, 3, 5],
         )
 
 
@@ -110,7 +124,8 @@ async def test_plan_draft_requires_confirmation_and_updates_owned_item() -> None
         owner = _user(session, "career-owner")
         stranger = _user(session, "career-stranger")
         question = _question(session, owner)
-        service = CareerService(session, FakePlanner(question.id))
+        planner = FakePlanner(question.id)
+        service = CareerService(session, planner)
         service.save_profile(
             user_id=owner.id,
             profile=CareerProfile(
@@ -125,11 +140,21 @@ async def test_plan_draft_requires_confirmation_and_updates_owned_item() -> None
             user_id=owner.id,
             request_id=uuid4(),
             week_start=date(2026, 7, 13),
+            instruction="周三没时间，增加周六训练",
         )
         assert service.get(user_id=owner.id).weekly_plan is None
         assert draft.items[0].question_id == question.id
         assert draft.items[0].title.startswith("精练 2 道")
         assert draft.items[0].completion_criteria.startswith("精练 2 道")
+        assert planner.last_user_data["用户本轮调整要求"] == "周三没时间，增加周六训练"
+
+        await service.create_draft(
+            user_id=owner.id,
+            request_id=uuid4(),
+            week_start=date(2026, 7, 13),
+            instruction="把周二任务移到周三，其他不变",
+        )
+        assert planner.last_user_data["当前计划"] is not None
 
         plan = service.save_weekly_plan(
             user_id=owner.id,
@@ -139,6 +164,13 @@ async def test_plan_draft_requires_confirmation_and_updates_owned_item() -> None
             status="active",
             draft_id=draft.id,
         )
+        await service.create_draft(
+            user_id=owner.id,
+            request_id=uuid4(),
+            week_start=date(2026, 7, 13),
+            instruction="增加周六训练，其他不变",
+        )
+        assert planner.last_user_data["当前计划"]["id"] == str(plan.id)
         completed = service.update_item_status(
             user_id=owner.id,
             plan_id=plan.id,
@@ -222,6 +254,23 @@ def test_weekly_plan_requires_monday_before_persistence() -> None:
             )
 
 
+def test_explicit_day_move_updates_only_source_day() -> None:
+    item = WeeklyPlanItem(
+        id=uuid4(),
+        scheduled_date=date(2026, 7, 14),
+        task_type="question_review",
+        title="周二任务",
+        reason="手动安排",
+        completion_criteria="完成一次",
+    )
+    moved = CareerService._apply_explicit_day_move(
+        items=[item],
+        instruction="把周二训练移到周三，其他安排不变",
+        week_start=date(2026, 7, 13),
+    )
+    assert moved[0].scheduled_date == date(2026, 7, 15)
+
+
 def test_training_mix_scales_mock_interviews_and_question_sessions() -> None:
     short = CareerService._training_mix(2)
     full = CareerService._training_mix(8)
@@ -230,3 +279,21 @@ def test_training_mix_scales_mock_interviews_and_question_sessions() -> None:
     assert "不安排完整模拟" in str(short["模拟面试"])
     assert "安排 3 次" in str(full["题目精练"])
     assert "至少安排 2 场" in str(full["模拟面试"])
+
+
+@pytest.mark.asyncio
+async def test_profile_can_be_confirmed_from_conversation() -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    with Session(engine, expire_on_commit=False) as session:
+        owner = _user(session, "conversation-owner")
+        planner = FakePlanner(uuid4())
+        result = await CareerService(session, planner).save_profile_from_message(
+            user_id=owner.id,
+            request_id=uuid4(),
+            message="目标前端工程师，每周八小时，周二四六训练",
+        )
+
+        assert result.profile is not None
+        assert result.profile.target_role == "前端工程师"
+        assert result.profile.available_weekdays == [1, 3, 5]

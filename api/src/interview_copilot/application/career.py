@@ -1,3 +1,4 @@
+import re
 from collections import Counter
 from collections.abc import Callable
 from datetime import UTC, date, datetime, timedelta
@@ -11,10 +12,12 @@ from interview_copilot.application.ability_profile import AbilityProfileService
 from interview_copilot.application.agent.career_planner import (
     CareerPlanAgentOutput,
     CareerPlanningAgent,
+    CareerProfileAgentOutput,
 )
 from interview_copilot.application.agent.skills import ActivatedSkill
 from interview_copilot.domain.career import (
     CareerProfile,
+    CareerProfileConversationResult,
     CareerQuestionOption,
     CareerWorkspace,
     PlanningBasis,
@@ -46,6 +49,10 @@ class CareerPlanner(Protocol):
         user_id: UUID,
         request_id: UUID,
     ) -> tuple[ActivatedSkill, CareerPlanAgentOutput]: ...
+
+    async def profile_from_message(
+        self, *, message: str, user_id: UUID, request_id: UUID
+    ) -> CareerProfileAgentOutput: ...
 
 
 class CareerService:
@@ -111,12 +118,38 @@ class CareerService:
         )
         self._session.commit()
 
+    async def save_profile_from_message(
+        self, *, user_id: UUID, request_id: UUID, message: str
+    ) -> CareerProfileConversationResult:
+        if not self._planner:
+            raise RuntimeError("求职训练规划 Agent 尚未配置")
+        parsed = await self._planner.profile_from_message(
+            message=message,
+            user_id=user_id,
+            request_id=request_id,
+        )
+        if not parsed.ready:
+            return CareerProfileConversationResult(reply=parsed.reply)
+        profile = CareerProfile(
+            target_role=parsed.target_role or "",
+            target_level=parsed.target_level,
+            target_companies=parsed.target_companies,
+            preferred_cities=parsed.preferred_cities,
+            weekly_hours=parsed.weekly_hours,
+            available_weekdays=parsed.available_weekdays,
+            preferred_time_slot=parsed.preferred_time_slot,
+            constraints=parsed.constraints,
+        )
+        saved = self.save_profile(user_id=user_id, profile=profile)
+        return CareerProfileConversationResult(reply=parsed.reply, profile=saved)
+
     async def create_draft(
         self,
         *,
         user_id: UUID,
         request_id: UUID,
         week_start: date,
+        instruction: str = "",
         progress: Callable[[str, int], None] | None = None,
     ) -> WeeklyPlanDraft:
         if week_start.weekday() != 0:
@@ -138,6 +171,31 @@ class CareerService:
             target_role=profile.target_role,
             evidence_focus=evidence_focus,
         )
+        baseline_draft = None
+        if instruction:
+            active_plan = self._session.scalar(
+                select(WeeklyPlanRecord)
+                .where(
+                    WeeklyPlanRecord.user_id == user_id,
+                    WeeklyPlanRecord.status == "active",
+                )
+                .options(selectinload(WeeklyPlanRecord.items))
+                .order_by(WeeklyPlanRecord.updated_at.desc())
+            )
+            if active_plan:
+                baseline_draft = self._plan(active_plan).model_dump(mode="json")
+            else:
+                baseline_record = self._session.scalar(
+                    select(CareerPlanDraftRecord)
+                    .where(CareerPlanDraftRecord.user_id == user_id)
+                    .order_by(CareerPlanDraftRecord.created_at.desc())
+                )
+                if baseline_record:
+                    expires_at = baseline_record.expires_at
+                    if expires_at.tzinfo is None:
+                        expires_at = expires_at.replace(tzinfo=UTC)
+                    if expires_at > datetime.now(UTC):
+                        baseline_draft = baseline_record.payload
         basis = PlanningBasis(
             profile_confirmed=True,
             question_count=len(options),
@@ -169,6 +227,8 @@ class CareerService:
                     for item in options
                 ],
                 "训练证据重点": basis.evidence_focus,
+                "用户本轮调整要求": instruction[:1_000] or None,
+                "当前计划": baseline_draft,
                 "专项能力": [
                     {
                         "维度": item.dimension,
@@ -188,6 +248,11 @@ class CareerService:
             proposal=proposal,
             week_start=week_start,
             options=options,
+        )
+        items = self._apply_explicit_day_move(
+            items=items,
+            instruction=instruction,
+            week_start=week_start,
         )
         self._validate_items(
             user_id=user_id, profile=profile, week_start=week_start, items=items
@@ -216,7 +281,7 @@ class CareerService:
             delete(CareerPlanDraftRecord).where(
                 CareerPlanDraftRecord.user_id == user_id,
                 CareerPlanDraftRecord.expires_at <= now,
-            )
+            ).execution_options(synchronize_session=False)
         )
         self._session.add(
             CareerPlanDraftRecord(
@@ -443,6 +508,37 @@ class CareerService:
                 )
             )
         return result
+
+    @staticmethod
+    def _apply_explicit_day_move(
+        *, items: list[WeeklyPlanItem], instruction: str, week_start: date
+    ) -> list[WeeklyPlanItem]:
+        if not instruction:
+            return items
+        match = re.search(
+            r"(周[一二三四五六日天]).{0,8}(?:移到|改到|挪到|调整到).{0,4}(周[一二三四五六日天])",
+            instruction,
+        )
+        if not match:
+            return items
+        day_index = {
+            "周一": 0,
+            "周二": 1,
+            "周三": 2,
+            "周四": 3,
+            "周五": 4,
+            "周六": 5,
+            "周日": 6,
+            "周天": 6,
+        }
+        source_date = week_start + timedelta(days=day_index[match.group(1)])
+        target_date = week_start + timedelta(days=day_index[match.group(2)])
+        return [
+            item.model_copy(update={"scheduled_date": target_date})
+            if item.scheduled_date == source_date
+            else item
+            for item in items
+        ]
 
     @staticmethod
     def _training_mix(weekly_hours: int) -> dict[str, object]:

@@ -101,6 +101,11 @@ export const careerWorkspaceSchema = z.object({
   question_options: z.array(careerQuestionOptionSchema),
 });
 
+export const careerProfileConversationResultSchema = z.object({
+  reply: z.string().min(1).max(500),
+  profile: careerProfileSchema.nullable(),
+});
+
 export const careerProfileRequestSchema = z.object({
   target_role: z.string().max(150).default(""),
   target_level: z.string().max(50).default(""),
@@ -112,7 +117,11 @@ export const careerProfileRequestSchema = z.object({
   constraints: z.string().max(2_000).default(""),
 }).strict();
 
-export const weeklyPlanDraftRequestSchema = z.object({ week_start: z.iso.date() }).strict();
+export const weeklyPlanDraftRequestSchema = z.object({
+  week_start: z.iso.date(),
+  instruction: z.string().max(1_000).default(""),
+}).strict();
+export const careerProfileMessageRequestSchema = z.object({ message: z.string().trim().min(1).max(1_000) }).strict();
 export const weeklyPlanRequestSchema = z.object({
   week_start: z.iso.date(),
   goal: z.string().min(1).max(500),
@@ -127,3 +136,4 @@ export type WeeklyPlan = z.infer<typeof weeklyPlanSchema>;
 export type WeeklyPlanDraft = z.infer<typeof weeklyPlanDraftSchema>;
 export type WeeklyPlanItem = z.infer<typeof weeklyPlanItemSchema>;
 export type CareerQuestionOption = z.infer<typeof careerQuestionOptionSchema>;
+export type CareerProfileConversationResult = z.infer<typeof careerProfileConversationResultSchema>;

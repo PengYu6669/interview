@@ -1,6 +1,6 @@
 from datetime import date
 from typing import Annotated, Literal
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Response
 from pydantic import BaseModel, ConfigDict, Field
@@ -16,6 +16,7 @@ from interview_copilot.config import get_settings
 from interview_copilot.domain.auth import UserProfile
 from interview_copilot.domain.career import (
     CareerProfile,
+    CareerProfileConversationResult,
     CareerWorkspace,
     WeeklyPlan,
     WeeklyPlanDraft,
@@ -54,6 +55,13 @@ class WeeklyPlanDraftRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     week_start: date
+    instruction: str = Field(default="", max_length=1_000)
+
+
+class CareerProfileMessageRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    message: str = Field(min_length=1, max_length=1_000)
 
 
 class WeeklyPlanRequest(BaseModel):
@@ -130,6 +138,22 @@ def delete_career_profile(
     return Response(status_code=204)
 
 
+@router.post("/profile/from-message", response_model=CareerProfileConversationResult)
+async def save_career_profile_from_message(
+    request: CareerProfileMessageRequest,
+    user: Annotated[UserProfile, Depends(require_current_user)],
+    service: Annotated[CareerService, Depends(career_planning_service)],
+) -> CareerProfileConversationResult:
+    try:
+        return await service.save_profile_from_message(
+            user_id=user.id,
+            request_id=uuid4(),
+            message=request.message,
+        )
+    except (DeepSeekAgentError, SkillRegistryError, RuntimeError, ValueError) as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
 @router.post("/weekly-plan/draft", response_model=AiJobStatus, status_code=202)
 async def generate_weekly_plan_draft(
     request: WeeklyPlanDraftRequest,
@@ -152,13 +176,16 @@ async def generate_weekly_plan_draft(
                 job.id,
                 user.id,
                 request.week_start,
+                request.instruction,
             )
         return job
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
-async def _run_career_plan(job_id: UUID, user_id: UUID, week_start: date) -> None:
+async def _run_career_plan(
+    job_id: UUID, user_id: UUID, week_start: date, instruction: str = ""
+) -> None:
     with SessionFactory() as session:
         if not session.get(AiJobRecord, job_id):
             return
@@ -172,6 +199,7 @@ async def _run_career_plan(job_id: UUID, user_id: UUID, week_start: date) -> Non
                 user_id=user_id,
                 request_id=job_id,
                 week_start=week_start,
+                instruction=instruction,
                 progress=progress,
             )
             _complete_career_job(job_id, resource_id=draft.id)
