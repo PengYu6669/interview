@@ -6,7 +6,12 @@ from fastapi.testclient import TestClient
 
 from interview_copilot.api.admin_management import admin_management_service, router
 from interview_copilot.api.auth import require_admin
-from interview_copilot.domain.admin import AdminSystemLog, AdminUserSummary
+from interview_copilot.domain.admin import (
+    AdminSystemLog,
+    AdminUserList,
+    AdminUserMetrics,
+    AdminUserSummary,
+)
 from interview_copilot.domain.auth import UserProfile
 
 
@@ -21,16 +26,23 @@ def _admin() -> UserProfile:
 
 
 class FakeAdminManagementService:
-    def list_users(self, **_: object) -> list[AdminUserSummary]:
-        return [
-            AdminUserSummary(
+    def list_users(self, **_: object) -> AdminUserList:
+        return AdminUserList(
+            metrics=AdminUserMetrics(
+                total_users=10,
+                daily_active_users=3,
+                weekly_active_users=7,
+                new_users_today=2,
+                admin_users=1,
+            ),
+            users=[AdminUserSummary(
                 id=uuid4(),
                 username="dick",
                 email="dick@example.com",
                 role="user",
                 created_at=datetime.now(UTC),
-            )
-        ]
+            )],
+        )
 
     def list_logs(self, **_: object) -> list[AdminSystemLog]:
         return [
@@ -68,7 +80,8 @@ def test_admin_management_lists_users_and_logs() -> None:
     logs = client.get("/v1/admin/logs")
 
     assert users.status_code == 200
-    assert users.json()[0]["username"] == "dick"
+    assert users.json()["users"][0]["username"] == "dick"
+    assert users.json()["metrics"]["daily_active_users"] == 3
     assert logs.status_code == 200
     assert logs.json()[0]["tool_name"] == "retrieve_job_evidence"
 

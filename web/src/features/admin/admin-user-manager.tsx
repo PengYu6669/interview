@@ -1,13 +1,23 @@
 "use client";
 
-import { LoaderCircle, Search, ShieldCheck, UserRound } from "lucide-react";
+import { Activity, LoaderCircle, Search, ShieldCheck, UserPlus, UserRound, UsersRound } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { SiteHeader } from "@/components/site-header";
-import { adminUserListSchema, type AdminUser } from "@/lib/admin";
+import { adminUserListSchema, type AdminUser, type AdminUserMetrics } from "@/lib/admin";
+
+const emptyMetrics: AdminUserMetrics = {
+  total_users: 0,
+  daily_active_users: 0,
+  weekly_active_users: 0,
+  new_users_today: 0,
+  admin_users: 0,
+  timezone: "Asia/Shanghai",
+};
 
 export function AdminUserManager() {
   const [users, setUsers] = useState<AdminUser[]>([]);
+  const [metrics, setMetrics] = useState<AdminUserMetrics>(emptyMetrics);
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -21,7 +31,7 @@ export function AdminUserManager() {
           if (!response.ok) throw new Error(typeof payload === "object" && payload && "detail" in payload ? String(payload.detail) : "用户列表读取失败");
           return adminUserListSchema.parse(payload);
         })
-        .then(setUsers)
+        .then((result) => { setUsers(result.users); setMetrics(result.metrics); })
         .catch((reason) => { if (!controller.signal.aborted) setError(reason instanceof Error ? reason.message : "用户列表读取失败"); })
         .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     }, 180);
@@ -33,6 +43,12 @@ export function AdminUserManager() {
       <SiteHeader active="admin" />
       <main className="mx-auto w-full max-w-[1180px] px-4 py-8 sm:px-6 lg:px-8">
         <header><span className="text-xs font-semibold text-[var(--muted)]">系统后台</span><h1 className="mt-1 text-2xl font-semibold">用户管理</h1></header>
+        <section aria-label="用户指标" className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <Metric icon={<UsersRound size={17} />} label="用户总数" value={metrics.total_users} detail={`${metrics.admin_users} 位管理员`} />
+          <Metric icon={<Activity size={17} />} label="今日活跃" value={metrics.daily_active_users} detail="截至当前" />
+          <Metric icon={<UserRound size={17} />} label="近 7 日活跃" value={metrics.weekly_active_users} detail="去重用户" />
+          <Metric icon={<UserPlus size={17} />} label="今日新增" value={metrics.new_users_today} detail="Asia/Shanghai" />
+        </section>
         <label className="mt-6 flex h-10 max-w-sm items-center gap-2 rounded-md bg-white px-3 shadow-[var(--shadow-soft)]">
           <Search size={15} className="text-[var(--muted)]" /><span className="sr-only">搜索用户</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索用户名或邮箱" className="min-w-0 flex-1 bg-transparent text-sm outline-none" />
         </label>
@@ -43,4 +59,8 @@ export function AdminUserManager() {
       </main>
     </div>
   );
+}
+
+function Metric({ icon, label, value, detail }: { icon: React.ReactNode; label: string; value: number; detail: string }) {
+  return <div className="rounded-md bg-white p-5 shadow-[var(--shadow-soft)]"><div className="flex items-center gap-2 text-xs text-[var(--muted)]">{icon}{label}</div><strong className="mt-3 block text-2xl font-semibold">{value.toLocaleString("zh-CN")}</strong><span className="mt-1 block text-xs text-[var(--muted)]">{detail}</span></div>;
 }

@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from interview_copilot.api.auth import require_admin
 from interview_copilot.application.admin_management import AdminManagementService
-from interview_copilot.domain.admin import AdminSystemLog, AdminUserSummary
+from interview_copilot.domain.admin import AdminSystemLog, AdminUserList
 from interview_copilot.domain.auth import UserProfile
 from interview_copilot.infrastructure.database import get_database_session
 
@@ -18,13 +18,13 @@ def admin_management_service(
     return AdminManagementService(session)
 
 
-@router.get("/users", response_model=list[AdminUserSummary])
+@router.get("/users", response_model=AdminUserList)
 def list_admin_users(
     _admin: Annotated[UserProfile, Depends(require_admin)],
     service: Annotated[AdminManagementService, Depends(admin_management_service)],
     query: str = Query(default="", max_length=100),
     limit: int = Query(default=100, ge=1, le=200),
-) -> list[AdminUserSummary]:
+) -> AdminUserList:
     return service.list_users(query=query, limit=limit)
 
 

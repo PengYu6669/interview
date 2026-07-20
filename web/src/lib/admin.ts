@@ -8,7 +8,19 @@ export const adminUserSchema = z.object({
   created_at: z.string().datetime(),
 });
 
-export const adminUserListSchema = adminUserSchema.array();
+export const adminUserMetricsSchema = z.object({
+  total_users: z.number().int().nonnegative(),
+  daily_active_users: z.number().int().nonnegative(),
+  weekly_active_users: z.number().int().nonnegative(),
+  new_users_today: z.number().int().nonnegative(),
+  admin_users: z.number().int().nonnegative(),
+  timezone: z.literal("Asia/Shanghai"),
+});
+
+export const adminUserListSchema = z.object({
+  metrics: adminUserMetricsSchema,
+  users: adminUserSchema.array(),
+});
 
 export const adminLogSchema = z.object({
   id: z.string().uuid(),
@@ -24,4 +36,5 @@ export const adminLogSchema = z.object({
 export const adminLogListSchema = adminLogSchema.array();
 
 export type AdminUser = z.infer<typeof adminUserSchema>;
+export type AdminUserMetrics = z.infer<typeof adminUserMetricsSchema>;
 export type AdminLog = z.infer<typeof adminLogSchema>;

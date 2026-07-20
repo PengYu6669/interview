@@ -19,6 +19,7 @@ PASSWORD_MIN_LENGTH = 6
 PASSWORD_MAX_BYTES = 128
 _PASSWORD_HASHER = PasswordHasher()
 _DUMMY_PASSWORD_HASH = _PASSWORD_HASHER.hash("not-a-real-user-password")
+_ACTIVITY_WRITE_INTERVAL = timedelta(hours=1)
 
 
 class DuplicateAccountError(ValueError):
@@ -139,6 +140,12 @@ class AuthenticationService:
         )
         if not record:
             raise InvalidSessionError("登录状态已失效，请重新登录")
+        last_active_at = record.last_active_at
+        if last_active_at.tzinfo is None:
+            last_active_at = last_active_at.replace(tzinfo=UTC)
+        if last_active_at <= now - _ACTIVITY_WRITE_INTERVAL:
+            record.last_active_at = now
+            self._session.commit()
         return UserProfile.model_validate(record.user)
 
     def logout(self, token: str) -> None:
@@ -169,6 +176,7 @@ class AuthenticationService:
                 user=user,
                 token_hash=self._hash_token(token),
                 created_at=now,
+                last_active_at=now,
                 expires_at=expires_at,
             )
         )

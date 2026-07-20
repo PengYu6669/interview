@@ -14,6 +14,20 @@ class AdminUserSummary(BaseModel):
     created_at: datetime
 
 
+class AdminUserMetrics(BaseModel):
+    total_users: int
+    daily_active_users: int
+    weekly_active_users: int
+    new_users_today: int
+    admin_users: int
+    timezone: str = "Asia/Shanghai"
+
+
+class AdminUserList(BaseModel):
+    metrics: AdminUserMetrics
+    users: list[AdminUserSummary]
+
+
 class AdminSystemLog(BaseModel):
     id: UUID
     request_id: UUID
