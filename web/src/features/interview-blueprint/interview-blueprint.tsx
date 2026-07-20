@@ -12,7 +12,9 @@ import { InterviewFlowProgress } from "@/features/interview-flow/flow-progress";
 import { Button } from "@/components/ui/button";
 
 function errorMessage(payload: unknown, fallback: string) {
-  return typeof payload === "object" && payload && "detail" in payload && typeof payload.detail === "string" ? payload.detail : fallback;
+  const detail = typeof payload === "object" && payload && "detail" in payload && typeof payload.detail === "string" ? payload.detail : fallback;
+  const requestId = typeof payload === "object" && payload && "request_id" in payload && typeof payload.request_id === "string" ? payload.request_id : "";
+  return requestId ? `${detail}（请求编号：${requestId}）` : detail;
 }
 
 export function InterviewBlueprint() {

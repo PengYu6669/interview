@@ -58,14 +58,11 @@ export function TrendLine({ points }: { points: { label: string; value: number; 
   const x = (index: number) => padding.x + (points.length === 1 ? chartWidth / 2 : chartWidth * index / (points.length - 1));
   const y = (value: number) => padding.y + chartHeight * (1 - Math.max(0, Math.min(100, value)) / 100);
   const line = points.map((item, index) => `${x(index)},${y(item.value)}`).join(" ");
-  const area = `${padding.x},${height - padding.y} ${line} ${x(points.length - 1)},${height - padding.y}`;
-  return <div className="trend-line" role="img" aria-label={points.map((item) => `${item.label} ${item.value}分`).join("，")}>
-    <svg viewBox={`0 0 ${width} ${height}`} aria-hidden="true">
-      <defs><linearGradient id="trend-area" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="currentColor" stopOpacity=".25" /><stop offset="1" stopColor="currentColor" stopOpacity="0" /></linearGradient></defs>
-      {[25, 50, 75].map((value) => <line className="trend-grid" key={value} x1={padding.x} y1={y(value)} x2={width - padding.x} y2={y(value)} />)}
-      <polygon className="trend-area" points={area} />
-      <polyline className="trend-path" points={line} />
-      {points.map((item, index) => <g key={`${item.label}-${index}`} className={item.confidence !== undefined && item.confidence < .4 ? "uncertain" : ""}><circle cx={x(index)} cy={y(item.value)} r="5" /><text x={x(index)} y={y(item.value) - 12} textAnchor="middle">{item.value}</text><text className="trend-label" x={x(index)} y={height - 4} textAnchor="middle">{item.label}</text></g>)}
+  return <div className="w-full overflow-hidden rounded-lg border border-[var(--border-default)] bg-white px-3 pb-1 pt-2 max-sm:px-1" role="img" aria-label={points.map((item) => `${item.label} ${item.value}分`).join("，")}>
+    <svg className="mx-auto block aspect-[3/1] min-h-[180px] w-full max-w-[760px]" viewBox={`0 0 ${width} ${height}`} aria-hidden="true">
+      {[25, 50, 75].map((value) => <line className="stroke-[var(--border-default)] [stroke-dasharray:4_6]" key={value} x1={padding.x} y1={y(value)} x2={width - padding.x} y2={y(value)} />)}
+      <polyline className="fill-none stroke-[3] stroke-[var(--ink)] [stroke-linecap:round] [stroke-linejoin:round]" points={line} />
+      {points.map((item, index) => <g key={`${item.label}-${index}`}><circle className="fill-white stroke-[3] stroke-[var(--ink)]" cx={x(index)} cy={y(item.value)} r="5" /><text className="fill-[var(--ink)] text-[11px] font-bold [font-family:var(--font-geist-mono)]" x={x(index)} y={y(item.value) - 12} textAnchor="middle">{item.value}</text><text className="fill-[var(--muted)] text-[11px] font-medium [font-family:var(--font-geist-sans)]" x={x(index)} y={height - 4} textAnchor="middle">{item.label}</text></g>)}
     </svg>
   </div>;
 }

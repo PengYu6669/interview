@@ -166,6 +166,12 @@ class FakeRagSearch(RagSearchService):
         return []
 
 
+class FailingRagIndexing(FakeRagIndexing):
+    async def index(self, document: RagDocumentInput) -> IndexedRagDocument:
+        del document
+        raise RuntimeError("embedding unavailable")
+
+
 def _planning_service(
     session: Session,
     generator: FakeGenerator,
@@ -333,6 +339,24 @@ async def test_new_plan_requires_configured_generator() -> None:
                 user_id=owner.id,
                 draft_id=draft.id,
             )
+
+
+@pytest.mark.asyncio
+async def test_rag_failure_reports_the_failed_planning_stage() -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    with Session(engine, expire_on_commit=False) as session:
+        owner = _create_user(session, "owner")
+        draft = _create_draft(session, owner.id, extraction={"schema_version": "test"})
+        service = InterviewPlanningService(
+            session,
+            FakeGenerator(),
+            rag_indexing=FailingRagIndexing(),
+            rag_search=FakeRagSearch(),
+        )
+
+        with pytest.raises(InterviewPlanningError, match="简历内容索引失败"):
+            await service.create(user_id=owner.id, draft_id=draft.id)
 
 
 @pytest.mark.asyncio

@@ -25,11 +25,15 @@ export async function POST(request: NextRequest, context: { params: Promise<{ se
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       body: JSON.stringify(parsed.data),
       cache: "no-store",
-      signal: AbortSignal.timeout(40_000),
+      signal: AbortSignal.timeout(15_000),
     });
-    return NextResponse.json(await readJsonResponse(response), { status: response.status });
+    const payload = await readJsonResponse(response);
+    if (response.status === 429 || response.status >= 500) {
+      return NextResponse.json({ interrupted: false });
+    }
+    return NextResponse.json(payload, { status: response.status });
   } catch (error) {
     console.error("实时打断判断失败", { cause: error });
-    return NextResponse.json({ detail: "实时打断判断超时，将继续正常面试" }, { status: 502 });
+    return NextResponse.json({ interrupted: false });
   }
 }

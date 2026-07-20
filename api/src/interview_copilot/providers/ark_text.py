@@ -2,6 +2,14 @@ import asyncio
 from typing import Any
 
 from volcenginesdkarkruntime import Ark  # type: ignore[import-untyped]
+from volcenginesdkarkruntime._exceptions import (  # type: ignore[import-untyped]
+    ArkAPIConnectionError,
+    ArkAPITimeoutError,
+    ArkAuthenticationError,
+    ArkError,
+    ArkPermissionDeniedError,
+    ArkRateLimitError,
+)
 
 
 class ArkTextClient:
@@ -15,11 +23,24 @@ class ArkTextClient:
         self.model = model
 
     async def complete(self, prompt: str, *, max_output_tokens: int = 6000) -> str:
-        response = await asyncio.to_thread(
-            self._complete_sync,
-            prompt,
-            max_output_tokens,
-        )
+        try:
+            response = await asyncio.to_thread(
+                self._complete_sync,
+                prompt,
+                max_output_tokens,
+            )
+        except ArkAPITimeoutError as exc:
+            raise RuntimeError("AI 服务响应超时，请重试") from exc
+        except ArkRateLimitError as exc:
+            raise RuntimeError("AI 服务当前繁忙，请稍后重试") from exc
+        except (ArkAuthenticationError, ArkPermissionDeniedError) as exc:
+            raise RuntimeError("AI 服务配置无效，请联系管理员") from exc
+        except ArkAPIConnectionError as exc:
+            raise RuntimeError("暂时无法连接 AI 服务，请稍后重试") from exc
+        except ArkError as exc:
+            raise RuntimeError("AI 服务请求失败，请稍后重试") from exc
+        except Exception as exc:  # noqa: BLE001 - vendor boundary normalization
+            raise RuntimeError("AI 服务请求失败，请稍后重试") from exc
         text = _response_text(response)
         if not text:
             raise RuntimeError("方舟返回了空的结构化结果")

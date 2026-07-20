@@ -3,7 +3,7 @@ from typing import Protocol
 from uuid import UUID
 
 from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session, object_session
 
 from interview_copilot.domain.interviews import (
@@ -208,19 +208,22 @@ class InterviewPlanningService:
         draft_id = draft.id
         target_role = draft.target_role
         training_focus = draft.training_focus
-        await self._rag_indexing.index(
-            RagDocumentInput(
-                owner_user_id=user_id,
-                corpus_type="candidate",
-                source_type="resume",
-                source_id=draft_id,
-                title=draft.resume_filename,
-                text=draft.resume_text,
-                metadata={"draft_id": str(draft_id)},
+        try:
+            await self._rag_indexing.index(
+                RagDocumentInput(
+                    owner_user_id=user_id,
+                    corpus_type="candidate",
+                    source_type="resume",
+                    source_id=draft_id,
+                    title=draft.resume_filename,
+                    text=draft.resume_text,
+                    metadata={"draft_id": str(draft_id)},
+                )
             )
-        )
-        # RAG data is independently reproducible; release its write locks before slow model I/O.
-        self._session.commit()
+            # RAG data is independently reproducible; release its write locks before slow model I/O.
+            self._session.commit()
+        except (RuntimeError, ValueError, SQLAlchemyError) as exc:
+            raise InterviewPlanningError("简历内容索引失败，请稍后重试") from exc
         job_text = "\n".join(
             item
             for item in [
@@ -232,41 +235,47 @@ class InterviewPlanningService:
             ]
             if item
         )
-        await self._rag_indexing.index(
-            RagDocumentInput(
-                owner_user_id=user_id,
-                corpus_type="job",
-                source_type="jd",
-                source_id=draft_id,
-                title=f"{target_role}岗位上下文",
-                text=job_text,
-                metadata={"draft_id": str(draft_id)},
+        try:
+            await self._rag_indexing.index(
+                RagDocumentInput(
+                    owner_user_id=user_id,
+                    corpus_type="job",
+                    source_type="jd",
+                    source_id=draft_id,
+                    title=f"{target_role}岗位上下文",
+                    text=job_text,
+                    metadata={"draft_id": str(draft_id)},
+                )
             )
-        )
-        self._session.commit()
+            self._session.commit()
+        except (RuntimeError, ValueError, SQLAlchemyError) as exc:
+            raise InterviewPlanningError("岗位信息索引失败，请稍后重试") from exc
         focus = f"{target_role} {training_focus}".strip()
-        candidate = await self._rag_search.search(
-            user_id=user_id,
-            query=f"{focus} 项目经验 技术实现 个人职责 方案取舍 量化结果",
-            corpus_types=["candidate"],
-            source_ids=[draft_id],
-            limit=4,
-        )
-        job = await self._rag_search.search(
-            user_id=user_id,
-            query=f"{focus} 岗位要求 核心职责 业务目标 能力要求",
-            corpus_types=["job"],
-            source_ids=[draft_id],
-            limit=3,
-        )
-        knowledge = await self._rag_search.search(
-            user_id=user_id,
-            query=f"{focus} 技术面试 核心知识 实现边界",
-            corpus_types=["knowledge"],
-            source_types=["question"],
-            source_ids=selected_question_ids,
-            limit=4,
-        )
+        try:
+            candidate = await self._rag_search.search(
+                user_id=user_id,
+                query=f"{focus} 项目经验 技术实现 个人职责 方案取舍 量化结果",
+                corpus_types=["candidate"],
+                source_ids=[draft_id],
+                limit=4,
+            )
+            job = await self._rag_search.search(
+                user_id=user_id,
+                query=f"{focus} 岗位要求 核心职责 业务目标 能力要求",
+                corpus_types=["job"],
+                source_ids=[draft_id],
+                limit=3,
+            )
+            knowledge = await self._rag_search.search(
+                user_id=user_id,
+                query=f"{focus} 技术面试 核心知识 实现边界",
+                corpus_types=["knowledge"],
+                source_types=["question"],
+                source_ids=selected_question_ids,
+                limit=4,
+            )
+        except (RuntimeError, ValueError, SQLAlchemyError) as exc:
+            raise InterviewPlanningError("面试材料检索失败，请稍后重试") from exc
         return {
             "candidate": self._evidence_payload(candidate, "C"),
             "job": self._evidence_payload(job, "J"),

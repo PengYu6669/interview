@@ -100,7 +100,9 @@ JSON Schema：{json.dumps(schema, ensure_ascii=False, separators=(',', ':'))}
 </候选人材料>"""
         try:
             content = await self._complete(prompt)
-        except (httpx.HTTPError, KeyError, IndexError, TypeError, RuntimeError) as exc:
+        except RuntimeError as exc:
+            raise InterviewPlanningError(str(exc)) from exc
+        except (httpx.HTTPError, KeyError, IndexError, TypeError) as exc:
             raise InterviewPlanningError("AI 面试计划生成失败") from exc
         if not isinstance(content, str) or not content.strip():
             raise InterviewPlanningError("AI 返回了空的面试计划")

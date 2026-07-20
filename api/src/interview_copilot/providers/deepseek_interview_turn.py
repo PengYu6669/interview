@@ -128,7 +128,7 @@ JSON Schema：{json.dumps(schema, ensure_ascii=False)}
 <实时面试数据>{json.dumps(data, ensure_ascii=False)}</实时面试数据>"""
         try:
             async with httpx.AsyncClient(
-                base_url=self._base_url, timeout=httpx.Timeout(30, connect=8)
+                base_url=self._base_url, timeout=httpx.Timeout(12, connect=5)
             ) as client:
                 response = await client.post(
                     "/chat/completions",

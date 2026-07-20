@@ -39,6 +39,19 @@ async def test_ark_text_client_extracts_only_output_text(monkeypatch: pytest.Mon
 
 
 @pytest.mark.asyncio
+async def test_ark_text_client_normalizes_vendor_failures(monkeypatch: pytest.MonkeyPatch) -> None:
+    client = ArkTextClient(api_key="test-key", base_url="https://example.invalid", model="test")
+
+    def fail(_: str, __: int) -> object:
+        raise OSError("vendor connection closed")
+
+    monkeypatch.setattr(client, "_complete_sync", fail)
+
+    with pytest.raises(RuntimeError, match="AI 服务请求失败"):
+        await client.complete("return json")
+
+
+@pytest.mark.asyncio
 async def test_ark_resume_extractor_keeps_existing_schema_validation(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

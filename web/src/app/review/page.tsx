@@ -229,34 +229,36 @@ function ReviewContent() {
         {loadError ? (
           <section className="flow-error-state" role="alert"><AlertTriangle size={22} /><div><h2>无法读取材料</h2><p>{loadError}</p></div><Button asChild><Link href="/setup"><ArrowLeft size={15} />返回准备材料</Link></Button></section>
         ) : material ? (
-          <div className="review-layout">
-            <aside className="source-preview">
-              <div className="panel-heading"><div><span>文件信息</span><small>{material.document.filename}</small></div></div>
-              <div className="resume-paper">
-                <h2>{material.role}</h2>
-                <h3>解析信息</h3>
-                <p>格式：{material.document.media_type}</p>
-                <p>页数：{material.document.page_count ?? "不适用"}</p>
-                <h3>岗位描述</h3>
-                <p>{material.jd}</p>
-                {material.document.warnings.map((warning) => <p key={warning} className="text-[var(--warning)]">注意：{warning}</p>)}
-              </div>
-            </aside>
-
-            <div className="review-fields">
-              <section className="review-block">
-                <div className="review-block-title"><div><h2>简历原文</h2><p>先修正文档解析问题，再进行 AI 结构化提取</p></div></div>
-                <div className="review-block-content">
-                  <label className="field-label" htmlFor="resume-text">提取文本</label>
-                  <textarea id="resume-text" className="answer-box" value={resumeText} onChange={(event) => { setResumeText(event.target.value); setExtraction(null); }} rows={18} />
-                  {!resumeText.trim() && <p className="text-xs text-[var(--danger)]" role="alert">没有可用文本。扫描版 PDF 需要 OCR，当前不能继续。</p>}
-                  {extractionError && <p className="text-xs text-[var(--danger)]" role="alert">{extractionError}</p>}
-                  <Button type="button" disabled={!resumeText.trim() || extracting} onClick={() => void extractProfile()}><Sparkles size={15} />{extracting ? "正在读取结构化结果" : extraction ? "重新提取" : "开始结构化提取"}</Button>
+          <>
+            <div className="review-layout">
+              <aside className="source-preview">
+                <div className="panel-heading"><div><span>文件信息</span><small>{material.document.filename}</small></div></div>
+                <div className="resume-paper">
+                  <h2>{material.role}</h2>
+                  <h3>解析信息</h3>
+                  <p>格式：{material.document.media_type}</p>
+                  <p>页数：{material.document.page_count ?? "不适用"}</p>
+                  <h3>岗位描述</h3>
+                  <p>{material.jd}</p>
+                  {material.document.warnings.map((warning) => <p key={warning} className="text-[var(--warning)]">注意：{warning}</p>)}
                 </div>
-              </section>
-              {extraction && <StructuredProfile result={extraction} onChange={setExtraction} />}
+              </aside>
+
+              <div className="review-fields">
+                <section className="review-block resume-source-block">
+                  <div className="review-block-title"><div><h2>简历原文</h2><p>先修正文档解析问题，再进行 AI 结构化提取</p></div></div>
+                  <div className="review-block-content">
+                    <label className="field-label" htmlFor="resume-text">提取文本</label>
+                    <textarea id="resume-text" className="answer-box" value={resumeText} onChange={(event) => { setResumeText(event.target.value); setExtraction(null); }} rows={18} />
+                    {!resumeText.trim() && <p className="text-xs text-[var(--danger)]" role="alert">没有可用文本。扫描版 PDF 需要 OCR，当前不能继续。</p>}
+                    {extractionError && <p className="text-xs text-[var(--danger)]" role="alert">{extractionError}</p>}
+                    <Button type="button" disabled={!resumeText.trim() || extracting} onClick={() => void extractProfile()}><Sparkles size={15} />{extracting ? "正在读取结构化结果" : extraction ? "重新提取" : "开始结构化提取"}</Button>
+                  </div>
+                </section>
+              </div>
             </div>
-          </div>
+            {extraction && <div className="mt-5"><StructuredProfile result={extraction} onChange={setExtraction} /></div>}
+          </>
         ) : (
           <p className="text-sm text-[var(--muted)]">正在读取本次材料…</p>
         )}

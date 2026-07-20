@@ -67,6 +67,7 @@ export function InterviewRoom({ sessionId }: { sessionId: string }) {
   const clientMessageIdRef = useRef<string | null>(null);
   const continuousVoiceRef = useRef(true);
   const recordingElapsedRef = useRef(0);
+  const recordingStartedAtRef = useRef<number | null>(null);
   const interruptionCheckedRef = useRef(false);
   const interruptionPendingRef = useRef(false);
   const interruptedRef = useRef(false);
@@ -521,9 +522,14 @@ export function InterviewRoom({ sessionId }: { sessionId: string }) {
       setVoiceStatus("listening");
       setRecording(true);
       setRecordingSeconds(0);
+      recordingStartedAtRef.current = Date.now();
+      if (recordingTimerRef.current) window.clearInterval(recordingTimerRef.current);
       recordingTimerRef.current = window.setInterval(() => {
-        recordingElapsedRef.current += 1;
-        setRecordingSeconds(recordingElapsedRef.current);
+        const startedAt = recordingStartedAtRef.current;
+        if (startedAt === null) return;
+        const elapsed = Math.max(0, Math.floor((Date.now() - startedAt) / 1_000));
+        recordingElapsedRef.current = elapsed;
+        setRecordingSeconds(elapsed);
       }, 1_000);
       recordingStopTimeoutRef.current = window.setTimeout(() => void stopVoiceAnswer(), 58_000);
     } catch (caught) {
@@ -544,6 +550,7 @@ export function InterviewRoom({ sessionId }: { sessionId: string }) {
     recordingTimerRef.current = null;
     recordingStopTimeoutRef.current = null;
     recordingRef.current = false;
+    recordingStartedAtRef.current = null;
     expectedSpeechCloseRef.current = true;
     await recorderRef.current?.stop();
     speechSocketRef.current?.close();
@@ -568,6 +575,7 @@ export function InterviewRoom({ sessionId }: { sessionId: string }) {
     if (recordingStopTimeoutRef.current) window.clearTimeout(recordingStopTimeoutRef.current);
     recordingTimerRef.current = null;
     recordingStopTimeoutRef.current = null;
+    recordingStartedAtRef.current = null;
     setRecording(false);
     setTranscribing(true);
     setVoiceStatus("recognizing");
@@ -587,7 +595,7 @@ export function InterviewRoom({ sessionId }: { sessionId: string }) {
         body: JSON.stringify({
           client_message_id: clientMessageIdRef.current,
           partial_answer: transcriptRef.current,
-          elapsed_seconds: recordingElapsedRef.current,
+          elapsed_seconds: Math.min(55, Math.max(12, recordingElapsedRef.current)),
         }),
       });
       const payload: unknown = await response.json();
@@ -613,7 +621,7 @@ export function InterviewRoom({ sessionId }: { sessionId: string }) {
       await playQuestion(spokenQuestion(nextRuntime));
       if (continuousVoiceRef.current) await startVoiceAnswer(nextRuntime);
     } catch (caught) {
-      setSpeechError(`${caught instanceof Error ? caught.message : "实时打断判断失败"}，请继续完成回答`);
+      console.warn("实时打断判断已跳过", caught instanceof Error ? caught.message : "未知错误");
     } finally {
       interruptionPendingRef.current = false;
     }

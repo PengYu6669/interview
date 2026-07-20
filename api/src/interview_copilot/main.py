@@ -14,6 +14,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
+from .api.admin_management import router as admin_management_router
 from .api.admin_questions import router as admin_questions_router
 from .api.auth import optional_current_user, require_current_user
 from .api.auth import router as auth_router
@@ -70,6 +71,7 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
 
 app = FastAPI(title=settings.app_name, version="0.1.0", lifespan=lifespan)
 app.include_router(admin_questions_router)
+app.include_router(admin_management_router)
 app.include_router(auth_router)
 app.include_router(boards_router)
 app.include_router(coaching_router)

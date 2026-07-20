@@ -25,6 +25,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(await readJsonResponse(response), { status: response.status });
   } catch (error) {
     console.error("面试计划生成失败", { cause: error });
-    return NextResponse.json({ detail: "面试计划生成超时或服务暂时不可用" }, { status: 502 });
+    const timedOut = error instanceof Error && error.name === "TimeoutError";
+    return NextResponse.json(
+      { detail: timedOut ? "面试计划生成超时，请重试" : "暂时无法连接面试计划服务，请稍后重试" },
+      { status: timedOut ? 504 : 502 },
+    );
   }
 }
