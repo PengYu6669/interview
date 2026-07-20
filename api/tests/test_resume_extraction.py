@@ -10,7 +10,7 @@ from interview_copilot.application.resume_extraction import (
     normalize_document_text,
 )
 from interview_copilot.domain.resume import EvidenceItem, ResumeExtractionResult, ResumeProfile
-from interview_copilot.providers.deepseek import DeepSeekResumeExtractor
+from interview_copilot.providers.qwen_resume import QwenResumeExtractor
 
 
 class StubResumeExtractor:
@@ -122,7 +122,7 @@ async def test_extracts_again_when_resume_changes() -> None:
     assert extractor.calls == 2
 
 
-def _deepseek_response(content: str) -> httpx.Response:
+def _qwen_response(content: str) -> httpx.Response:
     return httpx.Response(
         200,
         json={"choices": [{"message": {"content": content}}]},
@@ -130,7 +130,7 @@ def _deepseek_response(content: str) -> httpx.Response:
 
 
 @pytest.mark.asyncio
-async def test_deepseek_repairs_invalid_structured_output_once() -> None:
+async def test_qwen_repairs_invalid_structured_output_once() -> None:
     requests: list[dict[str, object]] = []
     valid = ResumeProfile(
         target_role="后端工程师",
@@ -141,14 +141,14 @@ async def test_deepseek_repairs_invalid_structured_output_once() -> None:
         payload = json.loads(request.content)
         requests.append(payload)
         if len(requests) == 1:
-            return _deepseek_response('{"target_role": 42}')
-        return _deepseek_response(valid)
+            return _qwen_response('{"target_role": 42}')
+        return _qwen_response(valid)
 
     client = httpx.AsyncClient(
         base_url="https://example.invalid",
         transport=httpx.MockTransport(handler),
     )
-    provider = DeepSeekResumeExtractor(
+    provider = QwenResumeExtractor(
         api_key="test-key",
         base_url="https://example.invalid",
         model="test-model",
@@ -171,15 +171,15 @@ async def test_deepseek_repairs_invalid_structured_output_once() -> None:
 
 
 @pytest.mark.asyncio
-async def test_deepseek_reports_failure_after_repair_is_still_invalid() -> None:
+async def test_qwen_reports_failure_after_repair_is_still_invalid() -> None:
     async def handler(_: httpx.Request) -> httpx.Response:
-        return _deepseek_response('{"target_role": 42}')
+        return _qwen_response('{"target_role": 42}')
 
     client = httpx.AsyncClient(
         base_url="https://example.invalid",
         transport=httpx.MockTransport(handler),
     )
-    provider = DeepSeekResumeExtractor(
+    provider = QwenResumeExtractor(
         api_key="test-key",
         base_url="https://example.invalid",
         model="test-model",
@@ -203,13 +203,13 @@ async def test_truncated_output_does_not_trigger_a_second_paid_call() -> None:
     async def handler(_: httpx.Request) -> httpx.Response:
         nonlocal calls
         calls += 1
-        return _deepseek_response('{"target_role":"后端工程师')
+        return _qwen_response('{"target_role":"后端工程师')
 
     client = httpx.AsyncClient(
         base_url="https://example.invalid",
         transport=httpx.MockTransport(handler),
     )
-    provider = DeepSeekResumeExtractor(
+    provider = QwenResumeExtractor(
         api_key="test-key",
         base_url="https://example.invalid",
         model="test-model",

@@ -7,9 +7,9 @@
     "filename": "ai_application_development.md",
     "sources": [
       {
-        "title": "Tool Calls",
-        "publisher": "DeepSeek",
-        "url": "https://api-docs.deepseek.com/guides/tool_calls"
+        "title": "Function calling",
+        "publisher": "OpenAI",
+        "url": "https://platform.openai.com/docs/guides/function-calling"
       },
       {
         "title": "LangGraph overview",

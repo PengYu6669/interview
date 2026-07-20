@@ -32,13 +32,13 @@ from interview_copilot.infrastructure.questions import (
     TopicRecord,
 )
 from interview_copilot.infrastructure.rag import RagDocumentRecord
-from interview_copilot.providers.deepseek_question_bank import (
-    DeepSeekQuestionBankProvider,
+from interview_copilot.providers.qwen_question_bank import (
     GeneratedQuestion,
     GeneratedQuestions,
     KnowledgePointCandidate,
     KnowledgePointMap,
     QuestionGenerationSection,
+    QwenQuestionBankProvider,
 )
 
 from .questions import QuestionBankService
@@ -56,12 +56,12 @@ class QuestionWorkflowService:
         self,
         session: Session,
         *,
-        deepseek: DeepSeekQuestionBankProvider | None = None,
+        qwen: QwenQuestionBankProvider | None = None,
         rag_indexing: RagIndexingService | None = None,
         rag_search: RagSearchService | None = None,
     ) -> None:
         self._session = session
-        self._deepseek = deepseek
+        self._qwen = qwen
         self._rag_indexing = rag_indexing
         self._rag_search = rag_search
 
@@ -81,7 +81,7 @@ class QuestionWorkflowService:
             raise ValueError("资料提取文本不能超过 20 万字符，请拆分后导入")
         if not 10 <= question_limit <= 100:
             raise ValueError("题目上限必须在 10 到 100 之间")
-        provider = self._deepseek_provider()
+        provider = self._qwen_provider()
         content_hash = sha256(text.encode("utf-8")).hexdigest()
         existing = self._session.scalar(
             select(QuestionDocumentRecord)
@@ -542,7 +542,7 @@ class QuestionWorkflowService:
         ]
         plan = self._question_plan(candidates, min(additional_limit, len(candidates)))
         point_records = {point.stable_key: point for point in points}
-        provider = self._deepseek_provider()
+        provider = self._qwen_provider()
         warnings = list(document.warnings)
         details: list[QuestionDetail] = []
         existing_fingerprints = {
@@ -771,7 +771,7 @@ class QuestionWorkflowService:
             )
         if not evidence:
             raise LookupError("这道题没有达到相关度要求的学习资料")
-        answer = await self._deepseek_provider().answer(
+        answer = await self._qwen_provider().answer(
             question=message,
             evidence=[item.content for item in evidence],
             history=[{"role": item.role, "content": item.content} for item in history_rows],
@@ -1130,7 +1130,7 @@ class QuestionWorkflowService:
             ).all()
         )
 
-    def _deepseek_provider(self) -> DeepSeekQuestionBankProvider:
-        if not self._deepseek:
+    def _qwen_provider(self) -> QwenQuestionBankProvider:
+        if not self._qwen:
             raise RuntimeError("题库 AI 服务尚未配置")
-        return self._deepseek
+        return self._qwen

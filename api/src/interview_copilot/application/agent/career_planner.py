@@ -5,9 +5,9 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 from interview_copilot.application.agent.skills import ActivatedSkill, SkillRegistry
 from interview_copilot.application.agent.tools import ToolContext
-from interview_copilot.providers.deepseek_agent import (
-    DeepSeekAgentError,
-    DeepSeekFunctionCallingClient,
+from interview_copilot.providers.qwen_agent import (
+    QwenAgentError,
+    QwenFunctionCallingClient,
 )
 
 SKILL_NAME = "career-planning-coach"
@@ -96,7 +96,7 @@ class CareerPlanningAgent:
     def __init__(
         self,
         skill_registry: SkillRegistry,
-        client: DeepSeekFunctionCallingClient,
+        client: QwenFunctionCallingClient,
     ) -> None:
         self._skills = skill_registry
         self._client = client
@@ -131,7 +131,7 @@ class CareerPlanningAgent:
             max_output_tokens=3_200,
         )
         if not output.items:
-            raise DeepSeekAgentError("训练规划助手没有生成可执行事项")
+            raise QwenAgentError("训练规划助手没有生成可执行事项")
         return skill, output
 
     async def profile_from_message(

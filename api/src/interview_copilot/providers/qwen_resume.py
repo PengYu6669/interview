@@ -24,7 +24,7 @@ REPAIR_PROMPT = """上一次输出没有通过 JSON Schema 校验。
 只返回修复后的 JSON 对象，不要输出 Markdown 或解释文字。"""
 
 
-class DeepSeekResumeExtractor:
+class QwenResumeExtractor:
     def __init__(
         self,
         *,
@@ -34,7 +34,7 @@ class DeepSeekResumeExtractor:
         client: httpx.AsyncClient | None = None,
     ) -> None:
         if not api_key:
-            raise ValueError("尚未配置 DEEPSEEK_API_KEY")
+            raise ValueError("尚未配置 DASHSCOPE_API_KEY")
         self._model = model
         self._owns_client = client is None
         self._client = client or httpx.AsyncClient(
@@ -82,18 +82,18 @@ class DeepSeekResumeExtractor:
                     return ResumeProfile.model_validate_json(repaired)
                 except (json.JSONDecodeError, ValidationError) as exc:
                     raise ResumeExtractionError(
-                        "DeepSeek 返回的结构化结果格式无效，自动修复后仍未通过校验"
+                        "Qwen 返回的结构化结果格式无效，自动修复后仍未通过校验"
                     ) from exc
         except ResumeExtractionError:
             raise
         except (httpx.TimeoutException, httpx.NetworkError) as exc:
-            raise ResumeExtractionError("暂时无法连接 DeepSeek，请稍后重试") from exc
+            raise ResumeExtractionError("暂时无法连接 Qwen，请稍后重试") from exc
         except httpx.HTTPStatusError as exc:
             raise ResumeExtractionError(
-                f"DeepSeek 拒绝了提取请求，HTTP 状态码为 {exc.response.status_code}"
+                f"Qwen 拒绝了提取请求，HTTP 状态码为 {exc.response.status_code}"
             ) from exc
         except (KeyError, IndexError, TypeError, json.JSONDecodeError, ValidationError) as exc:
-            raise ResumeExtractionError("DeepSeek 返回的结构化结果格式无效") from exc
+            raise ResumeExtractionError("Qwen 返回的结构化结果格式无效") from exc
 
     async def _complete(self, messages: list[dict[str, str]]) -> str:
         response = await self._client.post(
@@ -103,6 +103,7 @@ class DeepSeekResumeExtractor:
                 "model": self._model,
                 "messages": messages,
                 "response_format": {"type": "json_object"},
+                "enable_thinking": False,
                 "temperature": 0,
                 "max_tokens": 6000,
             },
@@ -111,7 +112,7 @@ class DeepSeekResumeExtractor:
         payload = response.json()
         content = payload["choices"][0]["message"]["content"]
         if not isinstance(content, str) or not content.strip():
-            raise ResumeExtractionError("DeepSeek 返回了空的结构化结果")
+            raise ResumeExtractionError("Qwen 返回了空的结构化结果")
         return content
 
     async def aclose(self) -> None:

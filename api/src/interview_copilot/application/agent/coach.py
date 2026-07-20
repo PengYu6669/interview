@@ -17,9 +17,9 @@ from interview_copilot.domain.coaching import (
     CoachingTaskPlan,
     DimensionAssessment,
 )
-from interview_copilot.providers.deepseek_agent import (
-    DeepSeekAgentError,
-    DeepSeekFunctionCallingClient,
+from interview_copilot.providers.qwen_agent import (
+    QwenAgentError,
+    QwenFunctionCallingClient,
 )
 
 _SKILL_BY_MODE: dict[CoachingMode, str] = {
@@ -74,7 +74,7 @@ class TrainingCoachAgent:
     def __init__(
         self,
         skill_registry: SkillRegistry,
-        client: DeepSeekFunctionCallingClient,
+        client: QwenFunctionCallingClient,
     ) -> None:
         self._skills = skill_registry
         self._client = client
@@ -130,7 +130,7 @@ class TrainingCoachAgent:
         )
         decision = cast(CoachingDecision, result["decision"])
         if final_turn and decision.action != "complete":
-            raise DeepSeekAgentError("训练达到轮数上限，但 Agent 未正确结束训练")
+            raise QwenAgentError("训练达到轮数上限，但 Agent 未正确结束训练")
         current_answer = str(user_data.get("用户回答", ""))
         first_answer = str(user_data.get("第一次回答") or "")
         decision = self._align_decision_quotes(
@@ -156,7 +156,7 @@ class TrainingCoachAgent:
             try:
                 parsed.add(UUID(str(raw_id)))
             except ValueError as exc:
-                raise DeepSeekAgentError("训练资料编号格式不正确") from exc
+                raise QwenAgentError("训练资料编号格式不正确") from exc
         return frozenset(parsed)
 
     def _build_graph(self):  # type: ignore[no-untyped-def]
@@ -220,7 +220,7 @@ class TrainingCoachAgent:
             or isinstance(attempt_value, bool)
             or attempt_value not in (1, 2)
         ):
-            raise DeepSeekAgentError("本次作答序号必须为 1 或 2")
+            raise QwenAgentError("本次作答序号必须为 1 或 2")
         attempt = attempt_value
         common = (
             "只评价训练任务 dimensions 指定的维度。evidence_quote 必须逐字复制当前回答"
@@ -306,7 +306,7 @@ class TrainingCoachAgent:
             if isinstance(selected, list):
                 unexpected = set(returned_dimensions).difference(str(item) for item in selected)
                 if unexpected:
-                    raise DeepSeekAgentError(
+                    raise QwenAgentError(
                         f"Agent 评价了本次任务之外的维度：{sorted(unexpected)}"
                     )
         return {"decision": decision}
@@ -318,13 +318,13 @@ class TrainingCoachAgent:
     @staticmethod
     def _continue_training(state: CoachState) -> CoachState:
         if not state["decision"].next_question:
-            raise DeepSeekAgentError("继续训练分支缺少下一题")
+            raise QwenAgentError("继续训练分支缺少下一题")
         return {}
 
     @staticmethod
     def _complete_training(state: CoachState) -> CoachState:
         if state["decision"].next_question is not None:
-            raise DeepSeekAgentError("完成训练分支仍包含下一题")
+            raise QwenAgentError("完成训练分支仍包含下一题")
         return {}
 
     @staticmethod
@@ -341,7 +341,7 @@ class TrainingCoachAgent:
         allowed = {str(item["key"]) for item in skill.rubric.get("dimensions", [])}
         unknown = set(dimensions).difference(allowed)
         if unknown:
-            raise DeepSeekAgentError(f"Agent 返回了未定义的评价维度：{sorted(unknown)}")
+            raise QwenAgentError(f"Agent 返回了未定义的评价维度：{sorted(unknown)}")
 
     @staticmethod
     def _validate_decision_evidence(
@@ -349,17 +349,17 @@ class TrainingCoachAgent:
     ) -> None:
         for assessment in decision.assessments:
             if assessment.evidence_quote and assessment.evidence_quote not in current_answer:
-                raise DeepSeekAgentError(f"评价维度 {assessment.key} 引用了回答中不存在的证据")
+                raise QwenAgentError(f"评价维度 {assessment.key} 引用了回答中不存在的证据")
         for segment in decision.evidence_segments:
             if segment.evidence_quote not in current_answer:
-                raise DeepSeekAgentError(f"结构标注 {segment.key} 引用了回答中不存在的证据")
+                raise QwenAgentError(f"结构标注 {segment.key} 引用了回答中不存在的证据")
         if not decision.comparison:
             return
         for item in decision.comparison.items:
             if item.before_quote and item.before_quote not in first_answer:
-                raise DeepSeekAgentError(f"对比维度 {item.dimension} 的首次证据不存在")
+                raise QwenAgentError(f"对比维度 {item.dimension} 的首次证据不存在")
             if item.after_quote and item.after_quote not in current_answer:
-                raise DeepSeekAgentError(f"对比维度 {item.dimension} 的重答证据不存在")
+                raise QwenAgentError(f"对比维度 {item.dimension} 的重答证据不存在")
 
     @classmethod
     def _align_decision_quotes(

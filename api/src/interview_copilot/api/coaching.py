@@ -30,11 +30,11 @@ from interview_copilot.infrastructure.agent_audit import SqlAlchemyToolAuditSink
 from interview_copilot.infrastructure.coaching import CoachingSessionRecord
 from interview_copilot.infrastructure.database import SessionFactory, get_database_session
 from interview_copilot.infrastructure.rag_store import PostgresRagSearchRepository
-from interview_copilot.providers.deepseek_agent import (
-    DeepSeekAgentError,
-    DeepSeekFunctionCallingClient,
+from interview_copilot.providers.dashscope_embedding import DashScopeEmbeddingProvider
+from interview_copilot.providers.qwen_agent import (
+    QwenAgentError,
+    QwenFunctionCallingClient,
 )
-from interview_copilot.providers.doubao_embedding import DoubaoEmbeddingProvider
 from interview_copilot.speech.streaming import stream_xfyun_transcription
 from interview_copilot.speech.tickets import (
     InvalidSpeechTicketError,
@@ -74,19 +74,19 @@ class CoachingSpeechTicketResponse(BaseModel):
 def coaching_service(
     session: Annotated[Session, Depends(get_database_session)],
 ) -> CoachingService:
-    embedding = DoubaoEmbeddingProvider(
-        api_key=settings.doubao_embedding_api_key,
-        endpoint=settings.doubao_embedding_endpoint,
-        model=settings.doubao_embedding_model,
-        dimensions=settings.doubao_embedding_dimensions,
+    embedding = DashScopeEmbeddingProvider(
+        api_key=settings.dashscope_api_key,
+        endpoint=settings.dashscope_embedding_endpoint,
+        model=settings.dashscope_embedding_model,
+        dimensions=settings.dashscope_embedding_dimensions,
     )
     search = RagSearchService(PostgresRagSearchRepository(session), embedding)
     registry = build_retrieval_tool_registry(search)
     executor = ToolExecutor(registry, audit_sink=SqlAlchemyToolAuditSink())
-    client = DeepSeekFunctionCallingClient(
-        api_key=settings.deepseek_api_key,
-        base_url=settings.deepseek_base_url,
-        model=settings.deepseek_model,
+    client = QwenFunctionCallingClient(
+        api_key=settings.dashscope_api_key,
+        base_url=settings.dashscope_base_url,
+        model=settings.dashscope_model,
         registry=registry,
         executor=executor,
     )
@@ -121,7 +121,7 @@ async def create_coaching_session(
         return await service.create(user_id=user.id, request_id=uuid4(), **request.model_dump())
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    except (DeepSeekAgentError, SkillRegistryError, RuntimeError) as exc:
+    except (QwenAgentError, SkillRegistryError, RuntimeError) as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
@@ -164,7 +164,7 @@ async def answer_coaching_session(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
-    except (DeepSeekAgentError, SkillRegistryError, RuntimeError) as exc:
+    except (QwenAgentError, SkillRegistryError, RuntimeError) as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 

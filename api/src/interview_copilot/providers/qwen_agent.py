@@ -15,11 +15,11 @@ from interview_copilot.application.agent.tools import (
 OutputModel = TypeVar("OutputModel", bound=BaseModel)
 
 
-class DeepSeekAgentError(RuntimeError):
+class QwenAgentError(RuntimeError):
     pass
 
 
-class DeepSeekFunctionCallingClient:
+class QwenFunctionCallingClient:
     prompt_version = "training-coach-agent-v2-deliberate-practice"
 
     def __init__(
@@ -33,7 +33,7 @@ class DeepSeekFunctionCallingClient:
         prompt_version: str | None = None,
     ) -> None:
         if not api_key:
-            raise ValueError("DeepSeek API Key 尚未配置")
+            raise ValueError("尚未配置 DASHSCOPE_API_KEY")
         self._api_key = api_key
         self._base_url = base_url.rstrip("/")
         self._model = model
@@ -89,10 +89,10 @@ class DeepSeekFunctionCallingClient:
             raw_calls = message.get("tool_calls")
             if raw_calls:
                 if not isinstance(raw_calls, list):
-                    raise DeepSeekAgentError("DeepSeek 返回的工具调用结构无效")
+                    raise QwenAgentError("Qwen 返回的工具调用结构无效")
                 tool_call_count += len(raw_calls)
                 if tool_call_count > max_tool_calls:
-                    raise DeepSeekAgentError("Agent 工具调用次数超过限制")
+                    raise QwenAgentError("Agent 工具调用次数超过限制")
                 messages.append(
                     {
                         "role": "assistant",
@@ -109,7 +109,7 @@ class DeepSeekFunctionCallingClient:
                             allowed_tools=allowed_tools,
                         )
                     except ToolExecutionError as exc:
-                        raise DeepSeekAgentError(str(exc)) from exc
+                        raise QwenAgentError(str(exc)) from exc
                     messages.append(
                         {
                             "role": "tool",
@@ -123,7 +123,7 @@ class DeepSeekFunctionCallingClient:
             content = message.get("content")
             if not isinstance(content, str) or not content.strip():
                 if finalization_requested:
-                    raise DeepSeekAgentError("DeepSeek Agent 连续返回空结果")
+                    raise QwenAgentError("Qwen Agent 连续返回空结果")
                 messages.append(
                     {
                         "role": "user",
@@ -144,8 +144,8 @@ class DeepSeekFunctionCallingClient:
                         f"{'.'.join(str(part) for part in item['loc']) or '根节点'}:{item['type']}"
                         for item in exc.errors()[:4]
                     )
-                    raise DeepSeekAgentError(
-                        f"DeepSeek Agent 返回的结果结构无效（{details}）"
+                    raise QwenAgentError(
+                        f"Qwen Agent 返回的结果结构无效（{details}）"
                     ) from exc
                 messages.extend(
                     [
@@ -162,7 +162,7 @@ class DeepSeekFunctionCallingClient:
                 tool_definitions = []
                 finalization_requested = True
                 continue
-        raise DeepSeekAgentError("Agent 未能在限制轮数内完成任务")
+        raise QwenAgentError("Agent 未能在限制轮数内完成任务")
 
     async def _chat(
         self,
@@ -176,7 +176,7 @@ class DeepSeekFunctionCallingClient:
             "messages": messages,
             "temperature": 0,
             "max_tokens": max_output_tokens,
-            "thinking": {"type": "disabled"},
+            "enable_thinking": False,
         }
         if tools:
             payload["tools"] = tools
@@ -194,9 +194,9 @@ class DeepSeekFunctionCallingClient:
                 response.raise_for_status()
                 message = response.json()["choices"][0]["message"]
         except (httpx.HTTPError, KeyError, IndexError, TypeError) as exc:
-            raise DeepSeekAgentError("DeepSeek Agent 请求失败") from exc
+            raise QwenAgentError("Qwen Agent 请求失败") from exc
         if not isinstance(message, dict):
-            raise DeepSeekAgentError("DeepSeek Agent 返回的消息结构无效")
+            raise QwenAgentError("Qwen Agent 返回的消息结构无效")
         return message
 
     @staticmethod
@@ -213,4 +213,4 @@ class DeepSeekFunctionCallingClient:
                 arguments=str(function["arguments"]),
             )
         except (KeyError, TypeError, ValidationError) as exc:
-            raise DeepSeekAgentError("DeepSeek 返回的工具调用结构无效") from exc
+            raise QwenAgentError("Qwen 返回的工具调用结构无效") from exc

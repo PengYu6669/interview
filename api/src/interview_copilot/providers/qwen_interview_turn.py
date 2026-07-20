@@ -12,12 +12,12 @@ from interview_copilot.domain.interviews import (
 PROMPT_VERSION = "interview-turn-v2"
 
 
-class DeepSeekInterviewTurnDecider:
+class QwenInterviewTurnDecider:
     prompt_version = PROMPT_VERSION
 
     def __init__(self, *, api_key: str, base_url: str, model: str) -> None:
         if not api_key:
-            raise ValueError("DeepSeek API Key 尚未配置")
+            raise ValueError("尚未配置 DASHSCOPE_API_KEY")
         self._api_key = api_key
         self._base_url = base_url.rstrip("/")
         self.model_name = model
@@ -82,6 +82,7 @@ JSON Schema：{json.dumps(schema, ensure_ascii=False)}
                         "model": self.model_name,
                         "messages": [{"role": "user", "content": prompt}],
                         "response_format": {"type": "json_object"},
+                        "enable_thinking": False,
                         "temperature": 0,
                         "max_tokens": 1200,
                     },
@@ -89,11 +90,11 @@ JSON Schema：{json.dumps(schema, ensure_ascii=False)}
                 response.raise_for_status()
                 content = response.json()["choices"][0]["message"]["content"]
         except (httpx.HTTPError, KeyError, IndexError, TypeError) as exc:
-            raise InterviewTurnError("DeepSeek 追问决策失败") from exc
+            raise InterviewTurnError("Qwen 追问决策失败") from exc
         try:
             return InterviewTurnDecision.model_validate_json(content)
         except (ValidationError, TypeError) as exc:
-            raise InterviewTurnError("DeepSeek 返回的追问决策结构无效") from exc
+            raise InterviewTurnError("Qwen 返回的追问决策结构无效") from exc
 
     async def assess_interruption(
         self,
@@ -137,6 +138,7 @@ JSON Schema：{json.dumps(schema, ensure_ascii=False)}
                         "model": self.model_name,
                         "messages": [{"role": "user", "content": prompt}],
                         "response_format": {"type": "json_object"},
+                        "enable_thinking": False,
                         "temperature": 0,
                         "max_tokens": 700,
                     },
@@ -145,4 +147,4 @@ JSON Schema：{json.dumps(schema, ensure_ascii=False)}
                 content = response.json()["choices"][0]["message"]["content"]
             return InterviewInterruptionDecision.model_validate_json(content)
         except (httpx.HTTPError, KeyError, IndexError, TypeError, ValidationError) as exc:
-            raise InterviewTurnError("DeepSeek 实时打断判断失败") from exc
+            raise InterviewTurnError("Qwen 实时打断判断失败") from exc

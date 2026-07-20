@@ -24,7 +24,7 @@ from interview_copilot.application.agent.tools import (
     ToolRegistry,
 )
 from interview_copilot.domain.coaching import CoachingDecision
-from interview_copilot.providers.deepseek_agent import DeepSeekFunctionCallingClient
+from interview_copilot.providers.qwen_agent import QwenFunctionCallingClient
 
 
 class EchoInput(ToolInput):
@@ -35,7 +35,7 @@ class EchoOutput(BaseModel):
     value: str
 
 
-class EmptyThenValidClient(DeepSeekFunctionCallingClient):
+class EmptyThenValidClient(QwenFunctionCallingClient):
     def __init__(self) -> None:
         registry = ToolRegistry([])
         super().__init__(
@@ -225,7 +225,7 @@ async def test_tool_executor_enforces_timeout() -> None:
 
 
 @pytest.mark.asyncio
-async def test_deepseek_agent_executes_bounded_tool_call_then_validates_json(
+async def test_qwen_agent_executes_bounded_tool_call_then_validates_json(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     class FinalOutput(BaseModel):
@@ -233,7 +233,7 @@ async def test_deepseek_agent_executes_bounded_tool_call_then_validates_json(
 
     registry = ToolRegistry([EchoTool()])
     executor = ToolExecutor(registry)
-    client = DeepSeekFunctionCallingClient(
+    client = QwenFunctionCallingClient(
         api_key="test-key",
         base_url="https://example.invalid",
         model="test-model",
@@ -278,14 +278,14 @@ async def test_deepseek_agent_executes_bounded_tool_call_then_validates_json(
 
 
 @pytest.mark.asyncio
-async def test_deepseek_agent_repairs_invalid_json_without_tools(
+async def test_qwen_agent_repairs_invalid_json_without_tools(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     class FinalOutput(BaseModel):
         answer: str
 
     registry = ToolRegistry([EchoTool()])
-    client = DeepSeekFunctionCallingClient(
+    client = QwenFunctionCallingClient(
         api_key="test-key",
         base_url="https://example.invalid",
         model="test-model",

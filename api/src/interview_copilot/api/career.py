@@ -25,9 +25,9 @@ from interview_copilot.domain.career import (
 from interview_copilot.domain.jobs import AiJobStatus
 from interview_copilot.infrastructure.database import SessionFactory, get_database_session
 from interview_copilot.infrastructure.jobs import AiJobRecord
-from interview_copilot.providers.deepseek_agent import (
-    DeepSeekAgentError,
-    DeepSeekFunctionCallingClient,
+from interview_copilot.providers.qwen_agent import (
+    QwenAgentError,
+    QwenFunctionCallingClient,
 )
 
 router = APIRouter(prefix="/v1/career", tags=["career"])
@@ -88,10 +88,10 @@ def career_planning_service(
 
 def _career_planning_service(session: Session) -> CareerService:
     registry = ToolRegistry([])
-    client = DeepSeekFunctionCallingClient(
-        api_key=settings.deepseek_api_key,
-        base_url=settings.deepseek_base_url,
-        model=settings.deepseek_model,
+    client = QwenFunctionCallingClient(
+        api_key=settings.dashscope_api_key,
+        base_url=settings.dashscope_base_url,
+        model=settings.dashscope_model,
         registry=registry,
         executor=ToolExecutor(registry),
         prompt_version="career-planning-agent-v1.2",
@@ -150,7 +150,7 @@ async def save_career_profile_from_message(
             request_id=uuid4(),
             message=request.message,
         )
-    except (DeepSeekAgentError, SkillRegistryError, RuntimeError, ValueError) as exc:
+    except (QwenAgentError, SkillRegistryError, RuntimeError, ValueError) as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
@@ -203,7 +203,7 @@ async def _run_career_plan(
                 progress=progress,
             )
             _complete_career_job(job_id, resource_id=draft.id)
-        except (DeepSeekAgentError, SkillRegistryError, RuntimeError, ValueError) as exc:
+        except (QwenAgentError, SkillRegistryError, RuntimeError, ValueError) as exc:
             session.rollback()
             _fail_career_job(job_id, str(exc))
 

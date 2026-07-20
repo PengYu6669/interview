@@ -28,9 +28,9 @@ from interview_copilot.infrastructure.rag_store import (
     PostgresRagSearchRepository,
     SqlAlchemyRagStore,
 )
-from interview_copilot.providers.ark_interview_planner import ArkInterviewPlanGenerator
-from interview_copilot.providers.deepseek_interview_turn import DeepSeekInterviewTurnDecider
-from interview_copilot.providers.doubao_embedding import DoubaoEmbeddingProvider
+from interview_copilot.providers.dashscope_embedding import DashScopeEmbeddingProvider
+from interview_copilot.providers.qwen_interview_planner import QwenInterviewPlanGenerator
+from interview_copilot.providers.qwen_interview_turn import QwenInterviewTurnDecider
 from interview_copilot.speech.streaming import stream_xfyun_transcription
 from interview_copilot.speech.tickets import (
     InvalidSpeechTicketError,
@@ -74,18 +74,18 @@ def planning_service(
     session: Annotated[Session, Depends(get_database_session)],
 ) -> InterviewPlanningService:
     try:
-        generator = ArkInterviewPlanGenerator(
-            api_key=settings.ark_api_key,
-            base_url=settings.ark_base_url,
-            model=settings.ark_model,
+        generator = QwenInterviewPlanGenerator(
+            api_key=settings.dashscope_api_key,
+            base_url=settings.dashscope_base_url,
+            model=settings.dashscope_model,
         )
     except ValueError:
         generator = None
-    embedding = DoubaoEmbeddingProvider(
-        api_key=settings.doubao_embedding_api_key,
-        endpoint=settings.doubao_embedding_endpoint,
-        model=settings.doubao_embedding_model,
-        dimensions=settings.doubao_embedding_dimensions,
+    embedding = DashScopeEmbeddingProvider(
+        api_key=settings.dashscope_api_key,
+        endpoint=settings.dashscope_embedding_endpoint,
+        model=settings.dashscope_embedding_model,
+        dimensions=settings.dashscope_embedding_dimensions,
     )
     return InterviewPlanningService(
         session,
@@ -105,10 +105,10 @@ def runtime_service(
     session: Annotated[Session, Depends(get_database_session)],
 ) -> InterviewRuntimeService:
     try:
-        decider = DeepSeekInterviewTurnDecider(
-            api_key=settings.deepseek_api_key,
-            base_url=settings.deepseek_base_url,
-            model=settings.deepseek_model,
+        decider = QwenInterviewTurnDecider(
+            api_key=settings.dashscope_api_key,
+            base_url=settings.dashscope_base_url,
+            model=settings.dashscope_model,
         )
     except ValueError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc

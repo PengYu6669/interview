@@ -48,9 +48,9 @@ from interview_copilot.infrastructure.rag_store import (
     PostgresRagSearchRepository,
     SqlAlchemyRagStore,
 )
-from interview_copilot.providers.ark_question_bank import ArkQuestionBankProvider
 from interview_copilot.providers.baidu_ocr import BaiduOCR, BaiduOCRConfig, BaiduOCRError
-from interview_copilot.providers.doubao_embedding import DoubaoEmbeddingProvider
+from interview_copilot.providers.dashscope_embedding import DashScopeEmbeddingProvider
+from interview_copilot.providers.qwen_question_bank import QwenQuestionBankProvider
 
 router = APIRouter(prefix="/v1/questions", tags=["questions"])
 settings = get_settings()
@@ -85,18 +85,18 @@ def service(session: Annotated[Session, Depends(get_database_session)]) -> Quest
 def workflow_service(
     session: Annotated[Session, Depends(get_database_session)],
 ) -> QuestionWorkflowService:
-    embedding = DoubaoEmbeddingProvider(
-        api_key=settings.doubao_embedding_api_key,
-        endpoint=settings.doubao_embedding_endpoint,
-        model=settings.doubao_embedding_model,
-        dimensions=settings.doubao_embedding_dimensions,
+    embedding = DashScopeEmbeddingProvider(
+        api_key=settings.dashscope_api_key,
+        endpoint=settings.dashscope_embedding_endpoint,
+        model=settings.dashscope_embedding_model,
+        dimensions=settings.dashscope_embedding_dimensions,
     )
     return QuestionWorkflowService(
         session,
-        deepseek=ArkQuestionBankProvider(
-            api_key=settings.ark_api_key,
-            base_url=settings.ark_base_url,
-            model=settings.ark_model,
+        qwen=QwenQuestionBankProvider(
+            api_key=settings.dashscope_api_key,
+            base_url=settings.dashscope_base_url,
+            model=settings.dashscope_model,
         ),
         rag_indexing=RagIndexingService(SqlAlchemyRagStore(session), embedding),
         rag_search=RagSearchService(PostgresRagSearchRepository(session), embedding),
@@ -104,18 +104,18 @@ def workflow_service(
 
 
 def _workflow(session: Session) -> QuestionWorkflowService:
-    embedding = DoubaoEmbeddingProvider(
-        api_key=settings.doubao_embedding_api_key,
-        endpoint=settings.doubao_embedding_endpoint,
-        model=settings.doubao_embedding_model,
-        dimensions=settings.doubao_embedding_dimensions,
+    embedding = DashScopeEmbeddingProvider(
+        api_key=settings.dashscope_api_key,
+        endpoint=settings.dashscope_embedding_endpoint,
+        model=settings.dashscope_embedding_model,
+        dimensions=settings.dashscope_embedding_dimensions,
     )
     return QuestionWorkflowService(
         session,
-        deepseek=ArkQuestionBankProvider(
-            api_key=settings.ark_api_key,
-            base_url=settings.ark_base_url,
-            model=settings.ark_model,
+        qwen=QwenQuestionBankProvider(
+            api_key=settings.dashscope_api_key,
+            base_url=settings.dashscope_base_url,
+            model=settings.dashscope_model,
         ),
         rag_indexing=RagIndexingService(SqlAlchemyRagStore(session), embedding),
         rag_search=RagSearchService(PostgresRagSearchRepository(session), embedding),

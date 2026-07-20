@@ -18,8 +18,7 @@ from interview_copilot.infrastructure.questions import (
     QuestionRecord,
     TopicRecord,
 )
-from interview_copilot.providers.deepseek_question_bank import (
-    DeepSeekQuestionBankProvider,
+from interview_copilot.providers.qwen_question_bank import (
     GeneratedChatAnswer,
     GeneratedQuestion,
     GeneratedQuestionEvidence,
@@ -27,6 +26,7 @@ from interview_copilot.providers.deepseek_question_bank import (
     KnowledgePointCandidate,
     KnowledgePointMap,
     QuestionGenerationSection,
+    QwenQuestionBankProvider,
 )
 
 
@@ -508,7 +508,7 @@ def test_chat_history_is_restored_and_conversation_is_owner_scoped() -> None:
 async def test_question_chat_prompt_separates_history_from_current_evidence(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    provider = DeepSeekQuestionBankProvider(
+    provider = QwenQuestionBankProvider(
         api_key="test-key",
         base_url="https://example.invalid",
         model="test-model",
@@ -586,7 +586,7 @@ async def test_question_chat_retrieval_is_scoped_to_selected_question() -> None:
                     )
                 ]
 
-        class FakeDeepSeek:
+        class FakeQwen:
             async def answer(self, **kwargs: object) -> GeneratedChatAnswer:
                 return GeneratedChatAnswer(
                     answer_markdown="需要同时做用户和来源过滤。[1]",
@@ -596,7 +596,7 @@ async def test_question_chat_retrieval_is_scoped_to_selected_question() -> None:
         search = FakeSearch()
         workflow = QuestionWorkflowService(
             session,
-            deepseek=FakeDeepSeek(),  # type: ignore[arg-type]
+            qwen=FakeQwen(),  # type: ignore[arg-type]
             rag_search=search,  # type: ignore[arg-type]
         )
         answer = await workflow.chat(
@@ -649,7 +649,7 @@ def test_generated_questions_keep_only_exact_source_evidence() -> None:
         ]
     )
 
-    result = DeepSeekQuestionBankProvider._validate_evidence(generated, sections)
+    result = QwenQuestionBankProvider._validate_evidence(generated, sections)
 
     assert [item.title for item in result.questions] == ["有效证据"]
     assert "编造证据" in result.warnings[0]
@@ -658,19 +658,19 @@ def test_generated_questions_keep_only_exact_source_evidence() -> None:
 def test_evidence_matching_tolerates_pdf_layout_but_returns_source_text() -> None:
     source = "模型调用失败时，先做指数退避；\n超过阈值后进入降级流程。"
 
-    matched = DeepSeekQuestionBankProvider._match_quote(
+    matched = QwenQuestionBankProvider._match_quote(
         source, "模型调用失败时,先做指数退避; 超过阈值后进入降级流程。"
     )
 
     assert matched == source
-    assert DeepSeekQuestionBankProvider._match_quote(source, "应永久关闭模型调用") is None
+    assert QwenQuestionBankProvider._match_quote(source, "应永久关闭模型调用") is None
 
 
 @pytest.mark.asyncio
 async def test_generation_repairs_non_exact_evidence_once(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    provider = DeepSeekQuestionBankProvider(
+    provider = QwenQuestionBankProvider(
         api_key="test-key",
         base_url="https://example.invalid",
         model="test-model",
@@ -762,7 +762,7 @@ def test_generated_questions_accept_fenced_json_and_keep_valid_items() -> None:
         '{"title":"坏题"}]}\n```'
     )
 
-    generated, errors = DeepSeekQuestionBankProvider._parse_generated(payload)
+    generated, errors = QwenQuestionBankProvider._parse_generated(payload)
 
     assert generated is not None
     assert [item.title for item in generated.questions] == ["解释限流策略"]
@@ -784,7 +784,7 @@ def test_generated_question_builds_learning_content_when_model_omits_it() -> Non
         evidence=[GeneratedQuestionEvidence(section_key="section-0", quote="使用令牌桶限制流量")],
     )
 
-    normalized = DeepSeekQuestionBankProvider._with_content(question)
+    normalized = QwenQuestionBankProvider._with_content(question)
 
     assert "### 核心结论" in normalized.content_markdown
     assert "使用令牌桶限制流量" not in normalized.content_markdown
@@ -874,7 +874,7 @@ async def test_imported_document_deduplicates_versions_and_preserves_coverage() 
         text = "我独立负责检索评测，将召回率从 70% 提升到 86%，并接入发布门禁。"
         workflow = QuestionWorkflowService(
             session,
-            deepseek=FakeProvider(),  # type: ignore[arg-type]
+            qwen=FakeProvider(),  # type: ignore[arg-type]
             rag_indexing=FakeIndexing(),  # type: ignore[arg-type]
         )
         first = await workflow.import_document(
@@ -995,7 +995,7 @@ async def test_import_commits_questions_progressively_per_batch() -> None:
         text = "\n\n".join(paragraphs)
         workflow = QuestionWorkflowService(
             session,
-            deepseek=FakeProvider(),  # type: ignore[arg-type]
+            qwen=FakeProvider(),  # type: ignore[arg-type]
             rag_indexing=FakeIndexing(),  # type: ignore[arg-type]
         )
 
@@ -1194,7 +1194,7 @@ async def test_import_fails_when_provider_cannot_reach_exact_question_count() ->
 
         workflow = QuestionWorkflowService(
             session,
-            deepseek=DuplicateProvider(),  # type: ignore[arg-type]
+            qwen=DuplicateProvider(),  # type: ignore[arg-type]
             rag_indexing=FakeIndexing(),  # type: ignore[arg-type]
         )
 
@@ -1212,7 +1212,7 @@ async def test_import_fails_when_provider_cannot_reach_exact_question_count() ->
 async def test_knowledge_point_merge_batches_large_candidate_sets(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    provider = DeepSeekQuestionBankProvider(
+    provider = QwenQuestionBankProvider(
         api_key="test-key",
         base_url="https://example.invalid",
         model="test-model",
@@ -1268,7 +1268,7 @@ def test_knowledge_point_dedupe_keeps_first_verified_candidate() -> None:
         update={"stable_key": "duplicate-point", "interview_claim": "重复候选。"}
     )
 
-    result = DeepSeekQuestionBankProvider._dedupe_points([first, duplicate])
+    result = QwenQuestionBankProvider._dedupe_points([first, duplicate])
 
     assert [item.stable_key for item in result] == ["first-point"]
 
@@ -1277,7 +1277,7 @@ def test_knowledge_point_dedupe_keeps_first_verified_candidate() -> None:
 async def test_knowledge_point_merge_stops_when_batches_do_not_converge(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    provider = DeepSeekQuestionBankProvider(
+    provider = QwenQuestionBankProvider(
         api_key="test-key",
         base_url="https://example.invalid",
         model="test-model",

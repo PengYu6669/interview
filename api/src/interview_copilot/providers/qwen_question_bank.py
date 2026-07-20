@@ -66,11 +66,13 @@ class GeneratedChatAnswer(BaseModel):
     citation_indexes: list[int]
 
 
-class DeepSeekQuestionBankProvider:
+class QwenQuestionBankProvider:
     model_name: str
     prompt_version = "knowledge-map-question-bank-v4"
 
     def __init__(self, *, api_key: str, base_url: str, model: str) -> None:
+        if not api_key:
+            raise ValueError("尚未配置 DASHSCOPE_API_KEY")
         self._api_key = api_key
         self._base_url = base_url.rstrip("/")
         self._model = model
@@ -366,7 +368,7 @@ JSON Schema：{json.dumps(schema, ensure_ascii=False)}
                 source = sources.get(evidence.section_key)
                 if not source:
                     continue
-                matched_quote = DeepSeekQuestionBankProvider._match_quote(source, evidence.quote)
+                matched_quote = QwenQuestionBankProvider._match_quote(source, evidence.quote)
                 if matched_quote:
                     valid_evidence.append(evidence.model_copy(update={"quote": matched_quote}))
             if not valid_evidence:
@@ -443,7 +445,7 @@ JSON Schema：{json.dumps(schema, ensure_ascii=False)}
                     "model": self._model,
                     "messages": [{"role": "user", "content": prompt}],
                     "response_format": {"type": "json_object"},
-                    "thinking": {"type": "disabled"},
+                    "enable_thinking": False,
                     "temperature": 0,
                     "max_tokens": 6000,
                 },

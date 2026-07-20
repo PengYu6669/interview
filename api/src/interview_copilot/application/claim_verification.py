@@ -11,7 +11,7 @@ from interview_copilot.domain.interviews import (
     VerifiedClaim,
 )
 from interview_copilot.domain.retrieval import RetrievedEvidence
-from interview_copilot.providers.doubao_embedding import EmbeddingError
+from interview_copilot.providers.dashscope_embedding import DashScopeError
 
 
 class ClaimVerificationError(RuntimeError):
@@ -75,7 +75,7 @@ class InterviewClaimVerificationService:
                     source_types=["curated_knowledge_pack"],
                     limit=5,
                 )
-            except (EmbeddingError, SQLAlchemyError) as exc:
+            except (DashScopeError, SQLAlchemyError) as exc:
                 raise ClaimVerificationError("权威知识检索暂时不可用") from exc
             evidence_by_claim[index] = evidence
             if evidence:

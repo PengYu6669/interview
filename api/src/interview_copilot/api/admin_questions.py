@@ -14,7 +14,7 @@ from interview_copilot.domain.auth import UserProfile
 from interview_copilot.domain.questions import AdminQuestionDetail, AdminQuestionSummary
 from interview_copilot.infrastructure.database import get_database_session
 from interview_copilot.infrastructure.rag_store import SqlAlchemyRagStore
-from interview_copilot.providers.doubao_embedding import DoubaoEmbeddingProvider
+from interview_copilot.providers.dashscope_embedding import DashScopeEmbeddingProvider
 
 router = APIRouter(prefix="/v1/admin/questions", tags=["admin-questions"])
 settings = get_settings()
@@ -51,11 +51,11 @@ def admin_question_service(
         session,
         rag_indexing=RagIndexingService(
             store,
-            DoubaoEmbeddingProvider(
-                api_key=settings.doubao_embedding_api_key,
-                endpoint=settings.doubao_embedding_endpoint,
-                model=settings.doubao_embedding_model,
-                dimensions=settings.doubao_embedding_dimensions,
+            DashScopeEmbeddingProvider(
+                api_key=settings.dashscope_api_key,
+                endpoint=settings.dashscope_embedding_endpoint,
+                model=settings.dashscope_embedding_model,
+                dimensions=settings.dashscope_embedding_dimensions,
             ),
         ),
     )

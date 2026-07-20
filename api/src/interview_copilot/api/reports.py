@@ -26,16 +26,16 @@ from interview_copilot.domain.interviews import (
 )
 from interview_copilot.infrastructure.database import get_database_session
 from interview_copilot.infrastructure.rag_store import PostgresRagSearchRepository
-from interview_copilot.providers.deepseek_claim_verification import (
-    DeepSeekClaimVerificationProvider,
+from interview_copilot.providers.dashscope_embedding import DashScopeEmbeddingProvider
+from interview_copilot.providers.qwen_claim_verification import (
+    QwenClaimVerificationProvider,
 )
-from interview_copilot.providers.deepseek_interview_report import (
-    DeepSeekInterviewReportGenerator,
+from interview_copilot.providers.qwen_interview_report import (
+    QwenInterviewReportGenerator,
 )
-from interview_copilot.providers.deepseek_report_review import (
-    DeepSeekInterviewReportReviewer,
+from interview_copilot.providers.qwen_report_review import (
+    QwenInterviewReportReviewer,
 )
-from interview_copilot.providers.doubao_embedding import DoubaoEmbeddingProvider
 
 router = APIRouter(prefix="/v1/interview-sessions", tags=["interview-reports"])
 settings = get_settings()
@@ -51,36 +51,36 @@ def report_write_service(
     session: Annotated[Session, Depends(get_database_session)],
 ) -> InterviewReportService:
     try:
-        generator = DeepSeekInterviewReportGenerator(
-            api_key=settings.deepseek_api_key,
-            base_url=settings.deepseek_base_url,
-            model=settings.deepseek_model,
+        generator = QwenInterviewReportGenerator(
+            api_key=settings.dashscope_api_key,
+            base_url=settings.dashscope_base_url,
+            model=settings.dashscope_model,
         )
     except ValueError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
-    embedding = DoubaoEmbeddingProvider(
-        api_key=settings.doubao_embedding_api_key,
-        endpoint=settings.doubao_embedding_endpoint,
-        model=settings.doubao_embedding_model,
-        dimensions=settings.doubao_embedding_dimensions,
+    embedding = DashScopeEmbeddingProvider(
+        api_key=settings.dashscope_api_key,
+        endpoint=settings.dashscope_embedding_endpoint,
+        model=settings.dashscope_embedding_model,
+        dimensions=settings.dashscope_embedding_dimensions,
     )
     verifier = InterviewClaimVerificationService(
         RagSearchService(PostgresRagSearchRepository(session), embedding),
-        DeepSeekClaimVerificationProvider(
-            api_key=settings.deepseek_api_key,
-            base_url=settings.deepseek_base_url,
-            model=settings.deepseek_model,
+        QwenClaimVerificationProvider(
+            api_key=settings.dashscope_api_key,
+            base_url=settings.dashscope_base_url,
+            model=settings.dashscope_model,
         ),
     )
     return InterviewReportService(session, generator, verifier)
 
 
-def report_reviewer() -> DeepSeekInterviewReportReviewer:
+def report_reviewer() -> QwenInterviewReportReviewer:
     try:
-        return DeepSeekInterviewReportReviewer(
-            api_key=settings.deepseek_api_key,
-            base_url=settings.deepseek_base_url,
-            model=settings.deepseek_model,
+        return QwenInterviewReportReviewer(
+            api_key=settings.dashscope_api_key,
+            base_url=settings.dashscope_base_url,
+            model=settings.dashscope_model,
         )
     except ValueError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc

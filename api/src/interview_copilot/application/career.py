@@ -35,7 +35,7 @@ from interview_copilot.infrastructure.questions import (
     QuestionRecord,
     UserQuestionProgressRecord,
 )
-from interview_copilot.providers.deepseek_agent import DeepSeekAgentError
+from interview_copilot.providers.qwen_agent import QwenAgentError
 
 
 class CareerPlanner(Protocol):
@@ -263,7 +263,7 @@ class CareerService:
             )
             for item in items
         ):
-            raise DeepSeekAgentError("规划结果没有使用可用的个人题库题目")
+            raise QwenAgentError("规划结果没有使用可用的个人题库题目")
         now = datetime.now(UTC)
         expires_at = now + timedelta(hours=2)
         draft = WeeklyPlanDraft(
@@ -432,7 +432,7 @@ class CareerService:
             selected_question_id = item.question_id
             option = option_map.get(selected_question_id) if selected_question_id else None
             if item.question_id and not option:
-                raise DeepSeekAgentError("规划结果引用了未授权题目")
+                raise QwenAgentError("规划结果引用了未授权题目")
             task_type = item.task_type
             coaching_mode = item.coaching_mode
             exercise_type = item.exercise_type

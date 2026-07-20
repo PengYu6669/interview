@@ -24,12 +24,12 @@ class VerificationDecisions(BaseModel):
     decisions: list[ClaimVerificationDecision] = Field(default_factory=list, max_length=3)
 
 
-class DeepSeekClaimVerificationProvider:
+class QwenClaimVerificationProvider:
     prompt_version = PROMPT_VERSION
 
     def __init__(self, *, api_key: str, base_url: str, model: str) -> None:
         if not api_key:
-            raise ValueError("DeepSeek API Key 尚未配置")
+            raise ValueError("尚未配置 DASHSCOPE_API_KEY")
         self._api_key = api_key
         self._base_url = base_url.rstrip("/")
         self.model_name = model
@@ -56,7 +56,7 @@ JSON Schema：{json.dumps(schema, ensure_ascii=False)}
         try:
             return ExtractedClaims.model_validate_json(content).claims
         except (ValidationError, TypeError) as exc:
-            raise ClaimVerificationError("DeepSeek 返回的主张提取结果结构无效") from exc
+            raise ClaimVerificationError("Qwen 返回的主张提取结果结构无效") from exc
 
     async def verify_claims(
         self,
@@ -83,7 +83,7 @@ JSON Schema：{json.dumps(schema, ensure_ascii=False)}
         try:
             decisions = VerificationDecisions.model_validate_json(content).decisions
         except (ValidationError, TypeError) as exc:
-            raise ClaimVerificationError("DeepSeek 返回的事实核验结果结构无效") from exc
+            raise ClaimVerificationError("Qwen 返回的事实核验结果结构无效") from exc
         expected: set[int] = set()
         for item in items:
             claim_index = item.get("claim_index")
@@ -92,7 +92,7 @@ JSON Schema：{json.dumps(schema, ensure_ascii=False)}
             expected.add(claim_index)
         actual = {item.claim_index for item in decisions}
         if actual != expected or len(actual) != len(decisions):
-            raise ClaimVerificationError("DeepSeek 返回的事实核验主张编号不完整")
+            raise ClaimVerificationError("Qwen 返回的事实核验主张编号不完整")
         return decisions
 
     async def _complete(self, prompt: str, *, max_tokens: int) -> str:
@@ -108,6 +108,7 @@ JSON Schema：{json.dumps(schema, ensure_ascii=False)}
                         "model": self.model_name,
                         "messages": [{"role": "user", "content": prompt}],
                         "response_format": {"type": "json_object"},
+                        "enable_thinking": False,
                         "temperature": 0,
                         "max_tokens": max_tokens,
                     },
@@ -115,7 +116,7 @@ JSON Schema：{json.dumps(schema, ensure_ascii=False)}
                 response.raise_for_status()
                 content = response.json()["choices"][0]["message"]["content"]
                 if not isinstance(content, str) or not content.strip():
-                    raise ClaimVerificationError("DeepSeek 返回了空的事实核验结果")
+                    raise ClaimVerificationError("Qwen 返回了空的事实核验结果")
                 return content
         except (httpx.HTTPError, KeyError, IndexError, TypeError) as exc:
-            raise ClaimVerificationError("DeepSeek 事实核验请求失败") from exc
+            raise ClaimVerificationError("Qwen 事实核验请求失败") from exc

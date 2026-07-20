@@ -47,8 +47,8 @@ from .infrastructure.request_observability import (
     validation_exception_response,
 )
 from .infrastructure.resume_extractions import SqlAlchemyResumeExtractionCache
-from .providers.ark_resume import ArkResumeExtractor
 from .providers.baidu_ocr import BaiduOCR, BaiduOCRConfig, BaiduOCRError
+from .providers.qwen_resume import QwenResumeExtractor
 from .tts.xfyun import XfyunTTS, XfyunTTSConfig, XfyunTTSError
 
 settings = get_settings()
@@ -118,17 +118,17 @@ async def get_resume_extraction_use_case(
     session: Annotated[Session, Depends(get_database_session)],
 ) -> AsyncIterator[ExtractResumeProfile]:
     try:
-        provider = ArkResumeExtractor(
-            api_key=settings.ark_api_key,
-            base_url=settings.ark_base_url,
-            model=settings.ark_model,
+        provider = QwenResumeExtractor(
+            api_key=settings.dashscope_api_key,
+            base_url=settings.dashscope_base_url,
+            model=settings.dashscope_model,
         )
     except ValueError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     try:
         yield ExtractResumeProfile(
             provider,
-            model_name=settings.ark_model,
+            model_name=settings.dashscope_model,
             cache=SqlAlchemyResumeExtractionCache(session),
         )
     finally:

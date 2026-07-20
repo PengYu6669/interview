@@ -9,12 +9,12 @@ from interview_copilot.domain.interviews import InterviewPlan
 PROMPT_VERSION = "interview-plan-v5-coding"
 
 
-class DeepSeekInterviewPlanGenerator:
+class QwenInterviewPlanGenerator:
     prompt_version = PROMPT_VERSION
 
     def __init__(self, *, api_key: str, base_url: str, model: str) -> None:
         if not api_key:
-            raise ValueError("DeepSeek API Key 尚未配置")
+            raise ValueError("尚未配置 DASHSCOPE_API_KEY")
         self._api_key = api_key
         self._base_url = base_url.rstrip("/")
         self.model_name = model
@@ -122,7 +122,7 @@ JSON Schema：{json.dumps(schema, ensure_ascii=False, separators=(',', ':'))}
                     "model": self.model_name,
                     "messages": [{"role": "user", "content": prompt}],
                     "response_format": {"type": "json_object"},
-                    "thinking": {"type": "disabled"},
+                    "enable_thinking": False,
                     "temperature": 0,
                     "max_tokens": 8000,
                 },

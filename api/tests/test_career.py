@@ -16,7 +16,7 @@ from interview_copilot.domain.career import CareerProfile, WeeklyPlanItem
 from interview_copilot.infrastructure.database import Base, UserRecord
 from interview_copilot.infrastructure.drafts import TrainingDraftRecord  # noqa: F401
 from interview_copilot.infrastructure.questions import QuestionRecord
-from interview_copilot.providers.deepseek_agent import DeepSeekAgentError
+from interview_copilot.providers.qwen_agent import QwenAgentError
 
 
 class FakePlanner:
@@ -200,7 +200,7 @@ async def test_planner_rejects_unapproved_question_uuid() -> None:
             user_id=owner.id,
             profile=CareerProfile(target_role="后端开发", available_weekdays=[0]),
         )
-        with pytest.raises(DeepSeekAgentError, match="未授权题目"):
+        with pytest.raises(QwenAgentError, match="未授权题目"):
             await service.create_draft(
                 user_id=owner.id,
                 request_id=uuid4(),

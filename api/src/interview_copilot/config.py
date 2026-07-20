@@ -26,21 +26,12 @@ class Settings(BaseSettings):
     auth_login_max_failures: int = Field(default=8, ge=3, le=100)
     auth_login_window_seconds: int = Field(default=900, ge=60, le=86_400)
 
-    deepseek_api_key: str = ""
-    deepseek_base_url: str = "https://api.deepseek.com"
-    deepseek_anthropic_base_url: str = "https://api.deepseek.com/anthropic"
-    deepseek_model: str = "deepseek-v4-flash"
-
-    ark_api_key: str = ""
-    ark_base_url: str = "https://ark.cn-beijing.volces.com/api/v3"
-    ark_model: str = "doubao-seed-2-1-pro-260628"
-
-    doubao_embedding_api_key: str = ""
-    doubao_embedding_endpoint: str = (
-        "https://ark.cn-beijing.volces.com/api/v3/embeddings/multimodal"
-    )
-    doubao_embedding_model: str = ""
-    doubao_embedding_dimensions: int = 1024
+    dashscope_api_key: str = ""
+    dashscope_base_url: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    dashscope_model: str = "qwen3.7-plus"
+    dashscope_embedding_endpoint: str = "https://dashscope.aliyuncs.com/compatible-mode/v1/embeddings"
+    dashscope_embedding_model: str = "text-embedding-v4"
+    dashscope_embedding_dimensions: int = 1024
 
     baidu_ocr_bearer_token: str = ""
     baidu_ocr_access_token: str = ""

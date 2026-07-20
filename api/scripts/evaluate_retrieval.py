@@ -10,7 +10,7 @@ from interview_copilot.application.retrieval.search import RagSearchService
 from interview_copilot.config import get_settings
 from interview_copilot.infrastructure.database import SessionFactory
 from interview_copilot.infrastructure.rag_store import PostgresRagSearchRepository
-from interview_copilot.providers.doubao_embedding import DoubaoEmbeddingProvider
+from interview_copilot.providers.dashscope_embedding import DashScopeEmbeddingProvider
 
 
 class RetrievalCase(BaseModel):
@@ -39,11 +39,11 @@ async def main() -> None:
         evaluation_path.read_text(encoding="utf-8")
     )
     settings = get_settings()
-    embedding = DoubaoEmbeddingProvider(
-        api_key=settings.doubao_embedding_api_key,
-        endpoint=settings.doubao_embedding_endpoint,
-        model=settings.doubao_embedding_model,
-        dimensions=settings.doubao_embedding_dimensions,
+    embedding = DashScopeEmbeddingProvider(
+        api_key=settings.dashscope_api_key,
+        endpoint=settings.dashscope_embedding_endpoint,
+        model=settings.dashscope_embedding_model,
+        dimensions=settings.dashscope_embedding_dimensions,
     )
     reciprocal_ranks: list[float] = []
     top_1_hits: list[bool] = []

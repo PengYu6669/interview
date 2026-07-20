@@ -7,16 +7,16 @@ from interview_copilot.domain.retrieval import RagDocumentInput
 from interview_copilot.infrastructure.database import SessionFactory
 from interview_copilot.infrastructure.rag_store import SqlAlchemyRagStore
 from interview_copilot.knowledge_packs import load_knowledge_packs
-from interview_copilot.providers.doubao_embedding import DoubaoEmbeddingProvider
+from interview_copilot.providers.dashscope_embedding import DashScopeEmbeddingProvider
 
 
 async def main() -> None:
     settings = get_settings()
-    embedding = DoubaoEmbeddingProvider(
-        api_key=settings.doubao_embedding_api_key,
-        endpoint=settings.doubao_embedding_endpoint,
-        model=settings.doubao_embedding_model,
-        dimensions=settings.doubao_embedding_dimensions,
+    embedding = DashScopeEmbeddingProvider(
+        api_key=settings.dashscope_api_key,
+        endpoint=settings.dashscope_embedding_endpoint,
+        model=settings.dashscope_embedding_model,
+        dimensions=settings.dashscope_embedding_dimensions,
     )
     with SessionFactory() as session:
         indexing = RagIndexingService(SqlAlchemyRagStore(session), embedding)
