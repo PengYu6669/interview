@@ -56,7 +56,7 @@ class SkillRegistry:
         instruction_path = self._safe_child(skill_dir, metadata.instruction_file)
         rubric_path = self._safe_child(skill_dir, metadata.rubric_file)
         try:
-            instructions = instruction_path.read_text(encoding="utf-8").strip()
+            instructions = _read_skill_instructions(instruction_path)
             rubric = json.loads(rubric_path.read_text(encoding="utf-8"))
         except (OSError, UnicodeError, json.JSONDecodeError) as exc:
             raise SkillRegistryError(f"训练 Skill {name} 内容无法读取") from exc
@@ -81,4 +81,21 @@ class SkillRegistry:
         if not candidate.is_file():
             raise SkillRegistryError(f"训练 Skill 缺少文件：{relative_name}")
         return candidate
+
+
+def _read_skill_instructions(path: Path) -> str:
+    text = path.read_text(encoding="utf-8").strip()
+    if not text.startswith("---"):
+        return text
+    lines = text.splitlines()
+    if len(lines) < 3 or lines[0].strip() != "---":
+        return text
+    try:
+        end = next(index for index, line in enumerate(lines[1:], start=1) if line.strip() == "---")
+    except StopIteration:
+        return text
+    body = "\n".join(lines[end + 1 :]).strip()
+    if not body:
+        raise SkillRegistryError(f"训练 Skill {path.parent.name} 正文为空")
+    return body
 

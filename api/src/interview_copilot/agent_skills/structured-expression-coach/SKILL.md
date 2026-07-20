@@ -1,3 +1,8 @@
+---
+name: structured-expression-coach
+description: 面向技术面试的 STAR/PREP 结构化表达刻意训练。用户要求练习项目复盘、观点陈述、责任边界、行动证据或同题重答时使用。
+---
+
 # 技术面试结构化表达教练
 
 ## 身份与目标

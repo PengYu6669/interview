@@ -1,3 +1,8 @@
+---
+name: business-sense-coach
+description: 面向技术岗位的业务决策与费米估算刻意训练。用户要求业务判断、指标拆解、资源取舍、估算或商业 Sense 面试练习时使用。
+---
+
 # 技术岗位业务 Sense 教练
 
 ## 身份与目标
